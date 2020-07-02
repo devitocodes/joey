@@ -1,5 +1,5 @@
 from devito.ml import Layer
-from devito import Grid, Function, Operator, dimensions, Eq
+from devito import Grid, Function, Operator, dimensions, Eq, Inc
 import numpy as np
 
 
@@ -94,4 +94,53 @@ class Subsampling(Layer):
 
 
 class FullyConnected(Layer):
-    pass
+    def __init__(self, weights, input_data):
+        self._weights = weights
+        super().__init__(input_data=input_data)
+
+    def _allocate(self):
+        weight_size = (len(self._weights), len(self._weights[0]))
+
+        try:
+            input_size = (len(self._input_data), len(self._input_data[0]))
+            is_vector = False
+        except TypeError:
+            input_size = len(self._input_data)
+            is_vector = True
+
+        a, b, c = dimensions('a b c')
+
+        gridW = Grid(shape=weight_size, dimensions=(a, b))
+        W = Function(name='W', grid=gridW, space_order=0)
+
+        if is_vector:
+            gridV_dimensions = (b,)
+            gridR_dimensions = (a,)
+            gridR_shape = weight_size[0]
+        else:
+            gridV_dimensions = (b, c)
+            gridR_dimensions = (a, c)
+            gridR_shape = (weight_size[0], input_size[1])
+
+        gridV = Grid(shape=input_size, dimensions=gridV_dimensions)
+        V = Function(name='V', grid=gridV, space_order=0)
+
+        W.data[:] = self._weights
+        V.data[:] = self._input_data
+
+        gridR = Grid(shape=gridR_shape, dimensions=gridR_dimensions)
+        R = Function(name='R', grid=gridR, space_order=0)
+
+        self._W = W
+        self._V = V
+
+        return R
+
+    def execute(self):
+        op = Operator(self.equations())
+        op.cfunction
+
+        return (op, self._R.data)
+
+    def equations(self):
+        return [Inc(self._R, self._W * self._V)]
