@@ -1,5 +1,5 @@
 from devito.ml import Layer
-from devito import Grid, Function, Operator, dimensions, Eq, Inc
+from devito import Grid, Function, dimensions, Eq, Inc
 import numpy as np
 
 
@@ -76,12 +76,6 @@ class Subsampling(Layer):
 
         return R
 
-    def execute(self):
-        op = Operator(self.equations())
-        op.cfunction
-
-        return (op, self._R.data)
-
     def equations(self):
         a, b = self._B.dimensions
         kernel_height, kernel_width = self._kernel_size
@@ -135,12 +129,6 @@ class FullyConnected(Layer):
         self._V = V
 
         return R
-
-    def execute(self):
-        op = Operator(self.equations())
-        op.cfunction
-
-        return (op, self._R.data)
 
     def equations(self):
         return [Inc(self._R, self._W * self._V)]
