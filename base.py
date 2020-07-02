@@ -14,9 +14,11 @@ class Layer(ABC):
         # an output of the layer.
         pass
 
-    @abstractmethod
     def execute(self) -> (Operator, array):
-        pass
+        op = Operator(self.equations())
+        op.cfunction
+
+        return (op, self._R.data)
 
     @abstractmethod
     def equations(self) -> list:
