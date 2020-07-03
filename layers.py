@@ -15,7 +15,7 @@ class ConvInPlace(Layer):
             raise Exception("kernel must not be empty")
 
         if input_data is None or len(input_data) == 0:
-            raise Exception("image must not be empty")
+            raise Exception("input_data must not be empty")
 
         different_row_length = False
         for row in kernel:
@@ -33,7 +33,7 @@ class ConvInPlace(Layer):
                 break
 
         if different_row_length:
-            raise Exception("image has an invalid shape")
+            raise Exception("input_data has an invalid shape")
 
         if len(kernel) % 2 == 0 or len(kernel[0]) % 2 == 0:
             raise Exception("The dimensions of kernel must be odd")
@@ -69,7 +69,75 @@ class ConvInPlace(Layer):
 
 
 class Conv(Layer):
-    pass
+    def __init__(self, kernel, input_data, stride=(1, 1), padding=(0, 0)):
+        self._error_check(kernel, input_data, stride, padding)
+
+        self._kernel = kernel
+
+        self._layer = Subsampling(kernel_size=(len(kernel), len(kernel[0])),
+                                  feature_map=input_data,
+                                  function=self._convolve,
+                                  stride=stride,
+                                  padding=padding)
+
+    def _convolve(self, values):
+        kernel_size = (len(self._kernel), len(self._kernel[0]))
+
+        acc = 0
+
+        for i in range(kernel_size[0]):
+            for j in range(kernel_size[1]):
+                acc += self._kernel[kernel_size[0] - i - 1][kernel_size[1] - j - 1] * \
+                    values[i * kernel_size[0] + j]
+
+        return acc
+
+    def _error_check(self, kernel, input_data, stride, padding):
+        if input_data is None or len(input_data) == 0:
+            raise Exception("Input data must not be empty")
+
+        if kernel is None or len(kernel) == 0:
+            raise Exception("Kernel must not be empty")
+
+        different_row_length = False
+        for row in kernel:
+            if len(row) != len(kernel[0]):
+                different_row_length = True
+                break
+
+        if different_row_length:
+            raise Exception("Kernel has an invalid shape")
+
+        if stride is None or len(stride) != 2:
+            raise Exception("Stride is incorrect")
+
+        if stride[0] < 1 or stride[1] < 1:
+            raise Exception("Stride cannot be less than 1")
+
+        if padding is None or len(padding) != 2:
+            raise Exception("Padding is incorrect")
+
+        if padding[0] < 0 or padding[1] < 0:
+            raise Exception("Padding cannot be negative")
+
+        map_height = len(input_data) + 2 * padding[0]
+        map_width = len(input_data[0]) + 2 * padding[1]
+        kernel_height, kernel_width = len(kernel), len(kernel[0])
+
+        if (map_height - kernel_height) % stride[0] != 0 or \
+           (map_width - kernel_width) % stride[1] != 0:
+            raise Exception("Stride " + str(stride) + " is not "
+                            "compatible with input data, kernel and padding "
+                            "sizes")
+
+    def _allocate(self):
+        pass
+
+    def execute(self):
+        return self._layer.execute()
+
+    def equations(self):
+        return self._layer.equations()
 
 
 class Subsampling(Layer):
