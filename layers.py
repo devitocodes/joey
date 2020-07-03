@@ -4,10 +4,11 @@ import numpy as np
 
 
 class ConvInPlace(Layer):
-    def __init__(self, kernel, input_data):
+    def __init__(self, kernel, input_data, activation=None):
         self._error_check(kernel, input_data)
 
         self._kernel = kernel
+        self._activation = activation
         super().__init__(input_data=input_data)
 
     def _error_check(self, kernel, input_data):
@@ -59,17 +60,22 @@ class ConvInPlace(Layer):
         x, y = self._B.dimensions
         kernel_rows, kernel_cols = self._A.shape
 
-        return [Eq(self._R[x, y],
-                   sum([self._A[kernel_rows - i - 1,
-                                kernel_cols - j - 1] *
-                        self._B[x - kernel_rows // 2 + i,
-                                y - kernel_cols // 2 + j]
-                        for i in range(kernel_rows)
-                        for j in range(kernel_cols)]))]
+        rhs = sum([self._A[kernel_rows - i - 1,
+                           kernel_cols - j - 1] *
+                   self._B[x - kernel_rows // 2 + i,
+                           y - kernel_cols // 2 + j]
+                   for i in range(kernel_rows)
+                   for j in range(kernel_cols)])
+
+        if self._activation is not None:
+            rhs = self._activation(rhs)
+
+        return [Eq(self._R[x, y], rhs)]
 
 
 class Conv(Layer):
-    def __init__(self, kernel, input_data, stride=(1, 1), padding=(0, 0)):
+    def __init__(self, kernel, input_data, stride=(1, 1), padding=(0, 0),
+                 activation=None):
         self._error_check(kernel, input_data, stride, padding)
 
         self._kernel = kernel
@@ -78,7 +84,8 @@ class Conv(Layer):
                                   feature_map=input_data,
                                   function=self._convolve,
                                   stride=stride,
-                                  padding=padding)
+                                  padding=padding,
+                                  activation=activation)
 
     def _convolve(self, values):
         kernel_size = (len(self._kernel), len(self._kernel[0]))
@@ -151,13 +158,15 @@ class Conv(Layer):
 
 class Subsampling(Layer):
     def __init__(self, kernel_size, feature_map, function,
-                 stride=(1, 1), padding=(0, 0)):
+                 stride=(1, 1), padding=(0, 0), activation=None):
         # All sizes are expressed as (rows, columns).
 
         self._error_check(kernel_size, feature_map, stride, padding)
 
         self._kernel_size = kernel_size
         self._function = function
+        self._activation = activation
+
         self._stride = stride
         self._padding = padding
 
@@ -222,16 +231,21 @@ class Subsampling(Layer):
         a, b = self._B.dimensions
         kernel_height, kernel_width = self._kernel_size
 
-        return [Eq(self._R[a, b],
-                   self._function([self._B[self._stride[0] * a + i,
-                                           self._stride[1] * b + j]
-                                   for i in range(kernel_height)
-                                   for j in range(kernel_width)]))]
+        rhs = self._function([self._B[self._stride[0] * a + i,
+                                      self._stride[1] * b + j]
+                              for i in range(kernel_height)
+                              for j in range(kernel_width)])
+
+        if self._activation is not None:
+            rhs = self._activation(rhs)
+
+        return [Eq(self._R[a, b], rhs)]
 
 
 class FullyConnected(Layer):
-    def __init__(self, weights, input_data):
+    def __init__(self, weights, input_data, activation=None):
         self._weights = weights
+        self._activation = activation
         super().__init__(input_data=input_data)
 
     def _allocate(self):
@@ -273,4 +287,9 @@ class FullyConnected(Layer):
         return R
 
     def equations(self):
-        return [Inc(self._R, self._W * self._V)]
+        eqs = [Inc(self._R, self._W * self._V)]
+
+        if self._activation is not None:
+            eqs.append(Eq(self._R, self._activation(self._R)))
+
+        return eqs
