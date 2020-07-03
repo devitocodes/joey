@@ -289,12 +289,14 @@ class FullyConnected(Layer):
         self._W = W
         self._V = V
 
+        if self._activation is not None:
+            self._T = Function(name='T', grid=gridR, space_order=0)
+
         return R
 
     def equations(self):
-        eqs = [Inc(self._R, self._W * self._V), Inc(self._R, self._bias)]
-
         if self._activation is not None:
-            eqs.append(Eq(self._R, self._activation(self._R)))
+            return [Inc(self._T, self._W * self._V),
+                    Eq(self._R, self._activation(self._T + self._bias))]
 
-        return eqs
+        return [Inc(self._R, self._W * self._V), Inc(self._R, self._bias)]
