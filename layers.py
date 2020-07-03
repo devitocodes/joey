@@ -108,6 +108,15 @@ class Conv(Layer):
         if different_row_length:
             raise Exception("Kernel has an invalid shape")
 
+        different_row_length = False
+        for row in input_data:
+            if len(row) != len(input_data[0]):
+                different_row_length = True
+                break
+
+        if different_row_length:
+            raise Exception("Input data have an invalid shape")
+
         if stride is None or len(stride) != 2:
             raise Exception("Stride is incorrect")
 
