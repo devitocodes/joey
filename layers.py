@@ -3,7 +3,8 @@ from devito import Grid, Function, dimensions, Eq, Inc
 import numpy as np
 
 
-class ConvInPlace(Layer):
+# Mathematically, ConvConv uses a convolution operation.
+class ConvConv(Layer):
     def __init__(self, kernel, input_data, activation=None, bias=0):
         self._error_check(kernel, input_data)
 
@@ -74,6 +75,7 @@ class ConvInPlace(Layer):
         return [Eq(self._R[x, y], rhs)]
 
 
+# Mathematically, Conv uses a cross-correlation operation.
 class Conv(Layer):
     def __init__(self, kernel, input_data, stride=(1, 1), padding=(0, 0),
                  activation=None, bias=0):
@@ -96,8 +98,7 @@ class Conv(Layer):
 
         for i in range(kernel_size[0]):
             for j in range(kernel_size[1]):
-                acc += self._kernel[kernel_size[0] - i - 1][kernel_size[1] - j - 1] * \
-                    values[i * kernel_size[0] + j]
+                acc += self._kernel[i][j] * values[i * kernel_size[0] + j]
 
         return acc
 
