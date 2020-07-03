@@ -3,7 +3,7 @@ from devito import Grid, Function, dimensions, Eq, Inc
 import numpy as np
 
 
-class Conv(Layer):
+class ConvInPlace(Layer):
     def __init__(self, kernel, input_data):
         self._error_check(kernel, input_data)
 
@@ -66,6 +66,10 @@ class Conv(Layer):
                                 y - kernel_cols // 2 + j]
                         for i in range(kernel_rows)
                         for j in range(kernel_cols)]))]
+
+
+class Conv(Layer):
+    pass
 
 
 class Subsampling(Layer):
