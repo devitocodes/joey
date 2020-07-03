@@ -4,7 +4,68 @@ import numpy as np
 
 
 class Conv(Layer):
-    pass
+    def __init__(self, kernel, input_data):
+        self._error_check(kernel, input_data)
+
+        self._kernel = kernel
+        super().__init__(input_data=input_data)
+
+    def _error_check(self, kernel, input_data):
+        if kernel is None or len(kernel) == 0:
+            raise Exception("kernel must not be empty")
+
+        if input_data is None or len(input_data) == 0:
+            raise Exception("image must not be empty")
+
+        different_row_length = False
+        for row in kernel:
+            if len(row) != len(kernel[0]):
+                different_row_length = True
+                break
+
+        if different_row_length:
+            raise Exception("kernel has an invalid shape")
+
+        different_row_length = False
+        for row in input_data:
+            if len(row) != len(input_data[0]):
+                different_row_length = True
+                break
+
+        if different_row_length:
+            raise Exception("image has an invalid shape")
+
+        if len(kernel) % 2 == 0 or len(kernel[0]) % 2 == 0:
+            raise Exception("The dimensions of kernel must be odd")
+
+    def _allocate(self):
+        gridA = Grid(shape=(len(self._kernel), len(self._kernel[0])),
+                     dimensions=dimensions('m n'))
+        A = Function(name='A', grid=gridA, space_order=0)
+        A.data[:] = self._kernel
+
+        gridBR = Grid(shape=(len(self._input_data), len(self._input_data[0])))
+
+        B = Function(name='B', grid=gridBR, space_order=1)
+        B.data[:] = self._input_data
+
+        self._A = A
+        self._B = B
+
+        R = Function(name='R', grid=gridBR, space_order=0)
+        return R
+
+    def equations(self):
+        x, y = self._B.dimensions
+        kernel_rows, kernel_cols = self._A.shape
+
+        return [Eq(self._R[x, y],
+                   sum([self._A[kernel_rows - i - 1,
+                                kernel_cols - j - 1] *
+                        self._B[x - kernel_rows // 2 + i,
+                                y - kernel_cols // 2 + j]
+                        for i in range(kernel_rows)
+                        for j in range(kernel_cols)]))]
 
 
 class Subsampling(Layer):
