@@ -5,13 +5,10 @@ import numpy as np
 
 # Mathematically, ConvConv uses a convolution operation.
 class ConvConv(Layer):
-    def __init__(self, kernel, input_data, activation=None, bias=0):
-        self._error_check(kernel, input_data)
-
+    def __init__(self, kernel, activation=None, bias=0):
         self._kernel = kernel
         self._activation = activation
         self._bias = bias
-        super().__init__(input_data=input_data)
 
     def _error_check(self, kernel, input_data):
         if kernel is None or len(kernel) == 0:
@@ -42,6 +39,8 @@ class ConvConv(Layer):
             raise Exception("The dimensions of kernel must be odd")
 
     def _allocate(self):
+        self._error_check(self._kernel, self._input_data)
+
         gridA = Grid(shape=(len(self._kernel), len(self._kernel[0])),
                      dimensions=dimensions('m n'))
         A = Function(name='A', grid=gridA, space_order=0)
@@ -77,14 +76,13 @@ class ConvConv(Layer):
 
 # Mathematically, Conv uses a cross-correlation operation.
 class Conv(Layer):
-    def __init__(self, kernel, input_data, stride=(1, 1), padding=(0, 0),
+    def __init__(self, kernel, stride=(1, 1), padding=(0, 0),
                  activation=None, bias=0):
-        self._error_check(kernel, input_data, stride, padding)
-
         self._kernel = kernel
+        self._stride = stride
+        self._padding = padding
 
         self._layer = Subsampling(kernel_size=(len(kernel), len(kernel[0])),
-                                  feature_map=input_data,
                                   function=self._convolve,
                                   stride=stride,
                                   padding=padding,
@@ -101,6 +99,11 @@ class Conv(Layer):
                 acc += self._kernel[i][j] * values[i * kernel_size[0] + j]
 
         return acc
+
+    def setup(self, input_data):
+        self._error_check(self._kernel, input_data, self._stride,
+                          self._padding)
+        self._layer.setup(input_data)
 
     def _error_check(self, kernel, input_data, stride, padding):
         if input_data is None or len(input_data) == 0:
@@ -160,12 +163,10 @@ class Conv(Layer):
 
 
 class Subsampling(Layer):
-    def __init__(self, kernel_size, feature_map, function,
+    def __init__(self, kernel_size, function,
                  stride=(1, 1), padding=(0, 0), activation=None,
                  bias=0):
         # All sizes are expressed as (rows, columns).
-
-        self._error_check(kernel_size, feature_map, stride, padding)
 
         self._kernel_size = kernel_size
         self._function = function
@@ -174,8 +175,6 @@ class Subsampling(Layer):
 
         self._stride = stride
         self._padding = padding
-
-        super().__init__(input_data=feature_map)
 
     def _error_check(self, kernel_size, feature_map, stride, padding):
         if feature_map is None or len(feature_map) == 0:
@@ -207,6 +206,9 @@ class Subsampling(Layer):
                             "sizes")
 
     def _allocate(self):
+        self._error_check(self._kernel_size, self._input_data, self._stride,
+                          self._padding)
+
         map_height = len(self._input_data) + 2 * self._padding[0]
         map_width = len(self._input_data[0]) + 2 * self._padding[1]
         kernel_height, kernel_width = self._kernel_size
@@ -248,11 +250,10 @@ class Subsampling(Layer):
 
 
 class FullyConnected(Layer):
-    def __init__(self, weights, input_data, activation=None, bias=0):
+    def __init__(self, weights, activation=None, bias=0):
         self._weights = weights
         self._activation = activation
         self._bias = bias
-        super().__init__(input_data=input_data)
 
     def _allocate(self):
         weight_size = (len(self._weights), len(self._weights[0]))
