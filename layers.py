@@ -237,14 +237,14 @@ class FullyConnected(Layer):
                          generate_code)
 
     def _allocate(self, weight_size, input_size, name_allocator_func):
-        is_vector = type(input_size) == int
+        self._input_is_vector = type(input_size) == int
 
         a, b, c = dimensions('a b c')
 
         gridW = Grid(shape=weight_size, dimensions=(a, b))
         W = Function(name=name_allocator_func(), grid=gridW, space_order=0)
 
-        if is_vector:
+        if self._input_is_vector:
             gridV_dimensions = (b,)
             gridR_dimensions = (a,)
             gridR_shape = weight_size[0]
@@ -293,8 +293,26 @@ class FullyConnectedSoftmax(FullyConnected):
                          lambda a: None, generate_code)
 
     def equations(self):
+        if self._input_is_vector:
+            return self._equations_vector()
+        else:
+            return self._equations_matrix()
+
+    def _equations_vector(self):
         C = Constant(name=self._name_allocator())
         return [Inc(self._T, self._K * self._I),
                 Inc(self._T, self._bias),
                 Eq(C, sum([exp(self._T[i]) for i in range(self._R.shape[0])])),
                 Eq(self._R, exp(self._T) / C)]
+
+    def _equations_matrix(self):
+        gridC = Grid(shape=self._R.shape[1])
+        C = Function(name=self._name_allocator(), grid=gridC, space_order=0)
+        x = C.dimensions[0]
+        a, b = self._R.dimensions
+
+        return [Inc(self._T, self._K * self._I),
+                Inc(self._T, self._bias),
+                Eq(C[x], sum([exp(self._T[i, x])
+                              for i in range(self._R.shape[0])])),
+                Eq(self._R[a, b], exp(self._T[a, b]) / C[b])]
