@@ -46,14 +46,17 @@ class ConvConv(Layer):
 
         return super().execute()
 
-    def equations(self):
-        x, y = self._I.dimensions
+    def equations(self, input_function=None):
+        if input_function is None:
+            input_function = self._I
+
+        x, y = input_function.dimensions
         kernel_rows, kernel_cols = self._K.shape
 
         rhs = sum([self._K[kernel_rows - i - 1,
                            kernel_cols - j - 1] *
-                   self._I[x - kernel_rows // 2 + i,
-                           y - kernel_cols // 2 + j]
+                   input_function[x - kernel_rows // 2 + i,
+                                  y - kernel_cols // 2 + j]
                    for i in range(kernel_rows)
                    for j in range(kernel_cols)]) + self._bias
 
@@ -131,8 +134,8 @@ class Conv(Layer):
     def execute(self, kernel_data, input_data, bias):
         return self._layer.execute(kernel_data, input_data, bias)
 
-    def equations(self):
-        return self._layer.equations()
+    def equations(self, input_function=None):
+        return self._layer.equations(input_function)
 
 
 class Subsampling(Layer):
@@ -212,12 +215,15 @@ class Subsampling(Layer):
 
         return super().execute()
 
-    def equations(self):
-        a, b = self._I.dimensions
+    def equations(self, input_function=None):
+        if input_function is None:
+            input_function = self._I
+
+        a, b = input_function.dimensions
         kernel_height, kernel_width = self._kernel_size
 
-        rhs = self._function([self._I[self._stride[0] * a + i,
-                                      self._stride[1] * b + j]
+        rhs = self._function([input_function[self._stride[0] * a + i,
+                                             self._stride[1] * b + j]
                               for i in range(kernel_height)
                               for j in range(kernel_width)]) + self._bias
 
@@ -277,12 +283,16 @@ class FullyConnected(Layer):
 
         return super().execute()
 
-    def equations(self):
+    def equations(self, input_function=None):
+        if input_function is None:
+            input_function = self._I
+
         if self._activation is not None:
-            return [Inc(self._T, self._K * self._I),
+            return [Inc(self._T, self._K * input_function),
                     Eq(self._R, self._activation(self._T + self._bias))]
 
-        return [Inc(self._R, self._K * self._I), Inc(self._R, self._bias)]
+        return [Inc(self._R, self._K * input_function),
+                Inc(self._R, self._bias)]
 
 
 class FullyConnectedSoftmax(FullyConnected):
@@ -292,26 +302,29 @@ class FullyConnectedSoftmax(FullyConnected):
         super().__init__(weight_size, input_size, name_allocator_func,
                          lambda a: None, generate_code)
 
-    def equations(self):
-        if self._input_is_vector:
-            return self._equations_vector()
-        else:
-            return self._equations_matrix()
+    def equations(self, input_function=None):
+        if input_function is None:
+            input_function = self._I
 
-    def _equations_vector(self):
+        if self._input_is_vector:
+            return self._equations_vector(input_function)
+        else:
+            return self._equations_matrix(input_function)
+
+    def _equations_vector(self, input_function):
         C = Constant(name=self._name_allocator())
-        return [Inc(self._T, self._K * self._I),
+        return [Inc(self._T, self._K * input_function),
                 Inc(self._T, self._bias),
                 Eq(C, sum([exp(self._T[i]) for i in range(self._R.shape[0])])),
                 Eq(self._R, exp(self._T) / C)]
 
-    def _equations_matrix(self):
+    def _equations_matrix(self, input_function):
         gridC = Grid(shape=self._R.shape[1])
         C = Function(name=self._name_allocator(), grid=gridC, space_order=0)
         x = C.dimensions[0]
         a, b = self._R.dimensions
 
-        return [Inc(self._T, self._K * self._I),
+        return [Inc(self._T, self._K * input_function),
                 Inc(self._T, self._bias),
                 Eq(C[x], sum([exp(self._T[i, x])
                               for i in range(self._R.shape[0])])),
