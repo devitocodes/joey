@@ -1,6 +1,7 @@
 from devito.ml import Layer
 from devito.ml import default_name_allocator as alloc
 from devito import Grid, Function, Constant, dimensions, Eq, Inc
+from sympy import exp
 import numpy as np
 
 
@@ -282,3 +283,18 @@ class FullyConnected(Layer):
                     Eq(self._R, self._activation(self._T + self._bias))]
 
         return [Inc(self._R, self._K * self._I), Inc(self._R, self._bias)]
+
+
+class FullyConnectedSoftmax(FullyConnected):
+    def __init__(self, weight_size, input_size, name_allocator_func=alloc,
+                 generate_code=True):
+        self._name_allocator = name_allocator_func
+        super().__init__(weight_size, input_size, name_allocator_func,
+                         lambda a: None, generate_code)
+
+    def equations(self):
+        C = Constant(name=self._name_allocator())
+        return [Inc(self._T, self._K * self._I),
+                Inc(self._T, self._bias),
+                Eq(C, sum([exp(self._T[i]) for i in range(self._R.shape[0])])),
+                Eq(self._R, exp(self._T) / C)]
