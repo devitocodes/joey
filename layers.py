@@ -1,7 +1,7 @@
 from devito.ml import Layer
 from devito.ml import default_name_allocator as alloc
 from devito.ml import default_dim_allocator as dim_alloc
-from devito import Grid, Function, Constant, dimensions, Eq, Inc
+from devito import Grid, Function, Constant, Eq, Inc
 from sympy import exp
 import numpy as np
 
@@ -125,17 +125,18 @@ class Conv(Layer):
         map_width = input_size[1] + 2 * self._padding[1]
         kernel_height, kernel_width = kernel_size
 
-        gridK = Grid(shape=kernel_size)
+        gridK = Grid(shape=kernel_size, dimensions=dim_allocator_func(2))
         K = Function(name=name_allocator_func(), grid=gridK, space_order=0)
 
-        a, b = dim_allocator_func(2)
-        gridB = Grid(shape=(map_height, map_width), dimensions=(a, b))
+        gridB = Grid(shape=(map_height, map_width),
+                     dimensions=dim_allocator_func(2))
         B = Function(name=name_allocator_func(), grid=gridB, space_order=0)
 
         gridR = Grid(shape=((map_height - kernel_height + self._stride[0])
                             // self._stride[0],
                             (map_width - kernel_width + self._stride[1])
-                            // self._stride[1]))
+                            // self._stride[1]),
+                     dimensions=dim_allocator_func(2))
         R = Function(name=name_allocator_func(), grid=gridR, space_order=0)
 
         return (K, B, R)
@@ -228,15 +229,15 @@ class Subsampling(Layer):
         map_width = input_size[1] + 2 * self._padding[1]
         kernel_height, kernel_width = kernel_size
 
-        gridB = Grid(shape=(map_height, map_width))
+        gridB = Grid(shape=(map_height, map_width),
+                     dimensions=dim_allocator_func(2))
         B = Function(name=name_allocator_func(), grid=gridB, space_order=0)
 
-        a, b = dim_allocator_func(2)
         gridR = Grid(shape=((map_height - kernel_height + self._stride[0])
                             // self._stride[0],
                             (map_width - kernel_width + self._stride[1])
                             // self._stride[1]),
-                     dimensions=(a, b))
+                     dimensions=dim_allocator_func(2))
         R = Function(name=name_allocator_func(), grid=gridR, space_order=0)
 
         return (None, B, R)
@@ -285,7 +286,8 @@ class FullyConnected(Layer):
                   dim_allocator_func):
         self._input_is_vector = type(input_size) == int
 
-        a, b, c = dim_allocator_func(3)
+        self._dimensions = dim_allocator_func(3)
+        a, b, c = self._dimensions
 
         gridW = Grid(shape=weight_size, dimensions=(a, b))
         W = Function(name=name_allocator_func(), grid=gridW, space_order=0)
@@ -329,18 +331,32 @@ class FullyConnected(Layer):
         if input_function is None:
             input_function = self._I
 
-        if self._activation is not None:
-            return [Inc(self._T, self._K * input_function),
-                    Eq(self._R, self._activation(self._T + self._bias))]
+        a, b, c = self._dimensions
 
-        return [Inc(self._R, self._K * input_function),
-                Inc(self._R, self._bias)]
+        if self._activation is not None:
+            if self._input_is_vector:
+                eqs = [Inc(self._T[a], self._K[a, b] * input_function[b])]
+            else:
+                eqs = [Inc(self._T[a, c],
+                           self._K[a, b] * input_function[b, c])]
+
+            eqs.append(Eq(self._R, self._activation(self._T + self._bias)))
+            return eqs
+
+        if self._input_is_vector:
+            eqs = [Inc(self._R[a], self._K[a, b] * input_function[b])]
+        else:
+            eqs = [Inc(self._R[a, c], self._K[a, b] * input_function[b, c])]
+
+        eqs.append(Inc(self._R, self._bias))
+        return eqs
 
 
 class FullyConnectedSoftmax(FullyConnected):
     def __init__(self, weight_size, input_size, name_allocator_func=alloc,
                  dim_allocator_func=dim_alloc, generate_code=True):
         self._name_allocator = name_allocator_func
+        self._dim_allocator = dim_allocator_func
         super().__init__(weight_size, input_size, name_allocator_func,
                          dim_allocator_func, lambda a: None, generate_code)
 
@@ -355,18 +371,19 @@ class FullyConnectedSoftmax(FullyConnected):
 
     def _equations_vector(self, input_function):
         C = Constant(name=self._name_allocator())
-        return [Inc(self._T, self._K * input_function),
+        a, b, c = self._dimensions
+        return [Inc(self._T[a], self._K[a, b] * input_function[b]),
                 Inc(self._T, self._bias),
                 Eq(C, sum([exp(self._T[i]) for i in range(self._R.shape[0])])),
                 Eq(self._R, exp(self._T) / C)]
 
     def _equations_matrix(self, input_function):
-        gridC = Grid(shape=self._R.shape[1])
+        gridC = Grid(shape=self._R.shape[1], dimensions=self._dim_allocator(1))
         C = Function(name=self._name_allocator(), grid=gridC, space_order=0)
         x = C.dimensions[0]
-        a, b = self._R.dimensions
+        a, b, c = self._dimensions
 
-        return [Inc(self._T, self._K * input_function),
+        return [Inc(self._T[a, c], self._K[a, b] * input_function[b, c]),
                 Inc(self._T, self._bias),
                 Eq(C[x], sum([exp(self._T[i, x])
                               for i in range(self._R.shape[0])])),
