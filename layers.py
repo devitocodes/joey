@@ -39,8 +39,10 @@ class ConvConv(Layer):
 
         return (A, B, R)
 
-    def execute(self, kernel_data, input_data, bias):
-        self._K.data[:] = kernel_data
+    def execute(self, input_data, bias, kernel_data=None):
+        if kernel_data is not None:
+            self._K.data[:] = kernel_data
+
         self._I.data[:] = input_data
         self._bias.data = bias
 
@@ -133,7 +135,7 @@ class Conv(Layer):
 
         return (K, B, R)
 
-    def execute(self, kernel_data, input_data, bias):
+    def execute(self, input_data, bias, kernel_data=None):
         map_height = len(input_data) + 2 * self._padding[0]
 
         for i in range(self._padding[0], map_height - self._padding[0]):
@@ -141,7 +143,10 @@ class Conv(Layer):
                 np.concatenate(([0] * self._padding[1],
                                 input_data[i - self._padding[0]],
                                 [0] * self._padding[1]))
-        self._K.data[:] = kernel_data
+
+        if kernel_data is not None:
+            self._K.data[:] = kernel_data
+
         self._bias.data = bias
 
         return super().execute()
@@ -297,8 +302,10 @@ class FullyConnected(Layer):
 
         return (W, V, R)
 
-    def execute(self, weight_data, input_data, bias):
-        self._K.data[:] = weight_data
+    def execute(self, input_data, bias, weight_data=None):
+        if weight_data is not None:
+            self._K.data[:] = weight_data
+
         self._I.data[:] = input_data
         self._bias.data = bias
 
