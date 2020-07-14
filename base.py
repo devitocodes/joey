@@ -24,6 +24,18 @@ class Layer(ABC):
             self._op = Operator(self.equations())
             self._op.cfunction
 
+    @property
+    def kernel(self):
+        return self._K
+
+    @property
+    def input(self):
+        return self._I
+
+    @property
+    def result(self):
+        return self._R
+
     @abstractmethod
     def _allocate(self, kernel_size, input_size,
                   name_allocator_func) -> (Function, Function, Function):
