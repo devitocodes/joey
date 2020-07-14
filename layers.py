@@ -1,5 +1,6 @@
 from devito.ml import Layer
 from devito.ml import default_name_allocator as alloc
+from devito.ml import default_dim_allocator as dim_alloc
 from devito import Grid, Function, Constant, dimensions, Eq, Inc
 from sympy import exp
 import numpy as np
@@ -8,12 +9,13 @@ import numpy as np
 # Mathematically, ConvConv uses a convolution operation.
 class ConvConv(Layer):
     def __init__(self, kernel_size, input_size, name_allocator_func=alloc,
-                 activation=None, generate_code=True):
+                 dim_allocator_func=dim_alloc, activation=None,
+                 generate_code=True):
         self._activation = activation
         self._bias = Constant(name=name_allocator_func())
 
         super().__init__(kernel_size, input_size, name_allocator_func,
-                         generate_code)
+                         dim_allocator_func, generate_code)
 
     def _error_check(self, kernel_size, input_size):
         if kernel_size is None or len(kernel_size) != 2:
@@ -25,11 +27,12 @@ class ConvConv(Layer):
         if kernel_size[0] % 2 == 0 or kernel_size[1] % 2 == 0:
             raise Exception("The dimensions of kernel must be odd")
 
-    def _allocate(self, kernel_size, input_size, name_allocator_func):
+    def _allocate(self, kernel_size, input_size, name_allocator_func,
+                  dim_allocator_func):
         self._error_check(kernel_size, input_size)
 
         gridA = Grid(shape=kernel_size,
-                     dimensions=dimensions('m n'))
+                     dimensions=dim_allocator_func(2))
         A = Function(name=name_allocator_func(), grid=gridA, space_order=0)
 
         gridBR = Grid(shape=input_size)
@@ -71,7 +74,8 @@ class ConvConv(Layer):
 # Mathematically, Conv uses a cross-correlation operation.
 class Conv(Layer):
     def __init__(self, kernel_size, input_size,
-                 name_allocator_func=alloc, stride=(1, 1), padding=(0, 0),
+                 name_allocator_func=alloc, dim_allocator_func=dim_alloc,
+                 stride=(1, 1), padding=(0, 0),
                  activation=None, generate_code=True):
         # All sizes are expressed as (rows, columns).
         self._error_check(kernel_size, input_size, stride, padding)
@@ -84,7 +88,7 @@ class Conv(Layer):
         self._padding = padding
 
         super().__init__(kernel_size, input_size, name_allocator_func,
-                         generate_code)
+                         dim_allocator_func, generate_code)
 
     def _error_check(self, kernel_size, input_size, stride, padding):
         if input_size is None or len(input_size) != 2:
@@ -115,7 +119,8 @@ class Conv(Layer):
                             "compatible with feature map, kernel and padding "
                             "sizes")
 
-    def _allocate(self, kernel_size, input_size, name_allocator_func):
+    def _allocate(self, kernel_size, input_size, name_allocator_func,
+                  dim_allocator_func):
         map_height = input_size[0] + 2 * self._padding[0]
         map_width = input_size[1] + 2 * self._padding[1]
         kernel_height, kernel_width = kernel_size
@@ -123,7 +128,7 @@ class Conv(Layer):
         gridK = Grid(shape=kernel_size)
         K = Function(name=name_allocator_func(), grid=gridK, space_order=0)
 
-        a, b = dimensions('a b')
+        a, b = dim_allocator_func(2)
         gridB = Grid(shape=(map_height, map_width), dimensions=(a, b))
         B = Function(name=name_allocator_func(), grid=gridB, space_order=0)
 
@@ -171,7 +176,8 @@ class Conv(Layer):
 
 class Subsampling(Layer):
     def __init__(self, kernel_size, input_size, function,
-                 name_allocator_func=alloc, stride=(1, 1), padding=(0, 0),
+                 name_allocator_func=alloc, dim_allocator_func=dim_alloc,
+                 stride=(1, 1), padding=(0, 0),
                  activation=None, generate_code=True):
         # All sizes are expressed as (rows, columns).
         self._error_check(kernel_size, input_size, stride, padding)
@@ -185,7 +191,7 @@ class Subsampling(Layer):
         self._padding = padding
 
         super().__init__(kernel_size, input_size, name_allocator_func,
-                         generate_code)
+                         dim_allocator_func, generate_code)
 
     def _error_check(self, kernel_size, input_size, stride, padding):
         if input_size is None or len(input_size) != 2:
@@ -216,7 +222,8 @@ class Subsampling(Layer):
                             "compatible with feature map, kernel and padding "
                             "sizes")
 
-    def _allocate(self, kernel_size, input_size, name_allocator_func):
+    def _allocate(self, kernel_size, input_size, name_allocator_func,
+                  dim_allocator_func):
         map_height = input_size[0] + 2 * self._padding[0]
         map_width = input_size[1] + 2 * self._padding[1]
         kernel_height, kernel_width = kernel_size
@@ -224,7 +231,7 @@ class Subsampling(Layer):
         gridB = Grid(shape=(map_height, map_width))
         B = Function(name=name_allocator_func(), grid=gridB, space_order=0)
 
-        a, b = dimensions('a b')
+        a, b = dim_allocator_func(2)
         gridR = Grid(shape=((map_height - kernel_height + self._stride[0])
                             // self._stride[0],
                             (map_width - kernel_width + self._stride[1])
@@ -266,17 +273,19 @@ class Subsampling(Layer):
 
 class FullyConnected(Layer):
     def __init__(self, weight_size, input_size, name_allocator_func=alloc,
-                 activation=None, generate_code=True):
+                 dim_allocator_func=dim_alloc, activation=None,
+                 generate_code=True):
         self._activation = activation
         self._bias = Constant(name=name_allocator_func())
 
         super().__init__(weight_size, input_size, name_allocator_func,
-                         generate_code)
+                         dim_allocator_func, generate_code)
 
-    def _allocate(self, weight_size, input_size, name_allocator_func):
+    def _allocate(self, weight_size, input_size, name_allocator_func,
+                  dim_allocator_func):
         self._input_is_vector = type(input_size) == int
 
-        a, b, c = dimensions('a b c')
+        a, b, c = dim_allocator_func(3)
 
         gridW = Grid(shape=weight_size, dimensions=(a, b))
         W = Function(name=name_allocator_func(), grid=gridW, space_order=0)
@@ -330,10 +339,10 @@ class FullyConnected(Layer):
 
 class FullyConnectedSoftmax(FullyConnected):
     def __init__(self, weight_size, input_size, name_allocator_func=alloc,
-                 generate_code=True):
+                 dim_allocator_func=dim_alloc, generate_code=True):
         self._name_allocator = name_allocator_func
         super().__init__(weight_size, input_size, name_allocator_func,
-                         lambda a: None, generate_code)
+                         dim_allocator_func, lambda a: None, generate_code)
 
     def equations(self, input_function=None):
         if input_function is None:
