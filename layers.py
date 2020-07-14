@@ -68,36 +68,21 @@ class ConvConv(Layer):
 
 # Mathematically, Conv uses a cross-correlation operation.
 class Conv(Layer):
-    def __init__(self, kernel_size, input_size, name_allocator_func=alloc,
-                 stride=(1, 1), padding=(0, 0), activation=None,
-                 generate_code=True):
-        self._error_check(self._kernel, input_size, self._stride,
-                          self._padding)
+    def __init__(self, kernel_size, input_size,
+                 name_allocator_func=alloc, stride=(1, 1), padding=(0, 0),
+                 activation=None, generate_code=True):
+        # All sizes are expressed as (rows, columns).
+        self._error_check(kernel_size, input_size, stride, padding)
+
+        self._kernel_size = kernel_size
+        self._activation = activation
+        self._bias = Constant(name=name_allocator_func())
 
         self._stride = stride
         self._padding = padding
-        self._kernel_size = kernel_size
-
-        self._layer = Subsampling(kernel_size=kernel_size,
-                                  input_size=input_size,
-                                  function=self._convolve,
-                                  name_allocator_func=name_allocator_func,
-                                  stride=stride,
-                                  padding=padding,
-                                  activation=activation,
-                                  generate_code=generate_code)
 
         super().__init__(kernel_size, input_size, name_allocator_func,
                          generate_code)
-
-    def _convolve(self, values):
-        acc = 0
-
-        for i in range(self._kernel_size[0]):
-            for j in range(self._kernel_size[1]):
-                acc += self._kernel[i][j] * values[i * self._kernel_size[0] + j]
-
-        return acc
 
     def _error_check(self, kernel_size, input_size, stride, padding):
         if input_size is None or len(input_size) != 2:
@@ -125,17 +110,58 @@ class Conv(Layer):
         if (map_height - kernel_height) % stride[0] != 0 or \
            (map_width - kernel_width) % stride[1] != 0:
             raise Exception("Stride " + str(stride) + " is not "
-                            "compatible with input data, kernel and padding "
+                            "compatible with feature map, kernel and padding "
                             "sizes")
 
     def _allocate(self, kernel_size, input_size, name_allocator_func):
-        pass
+        map_height = input_size[0] + 2 * self._padding[0]
+        map_width = input_size[1] + 2 * self._padding[1]
+        kernel_height, kernel_width = kernel_size
+
+        gridK = Grid(shape=kernel_size)
+        K = Function(name=name_allocator_func(), grid=gridK, space_order=0)
+
+        a, b = dimensions('a b')
+        gridB = Grid(shape=(map_height, map_width), dimensions=(a, b))
+        B = Function(name=name_allocator_func(), grid=gridB, space_order=0)
+
+        gridR = Grid(shape=((map_height - kernel_height + self._stride[0])
+                            // self._stride[0],
+                            (map_width - kernel_width + self._stride[1])
+                            // self._stride[1]))
+        R = Function(name=name_allocator_func(), grid=gridR, space_order=0)
+
+        return (K, B, R)
 
     def execute(self, kernel_data, input_data, bias):
-        return self._layer.execute(kernel_data, input_data, bias)
+        map_height = len(input_data) + 2 * self._padding[0]
+
+        for i in range(self._padding[0], map_height - self._padding[0]):
+            self._I.data[i] = \
+                np.concatenate(([0] * self._padding[1],
+                                input_data[i - self._padding[0]],
+                                [0] * self._padding[1]))
+        self._K.data[:] = kernel_data
+        self._bias.data = bias
+
+        return super().execute()
 
     def equations(self, input_function=None):
-        return self._layer.equations(input_function)
+        if input_function is None:
+            input_function = self._I
+
+        a, b = input_function.dimensions
+        kernel_height, kernel_width = self._kernel_size
+
+        rhs = sum([self._K[i, j] * input_function[self._stride[0] * a + i,
+                                                  self._stride[1] * b + j]
+                  for i in range(kernel_height)
+                  for j in range(kernel_width)]) + self._bias
+
+        if self._activation is not None:
+            rhs = self._activation(rhs)
+
+        return [Eq(self._R[a, b], rhs)]
 
 
 class Subsampling(Layer):
