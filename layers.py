@@ -388,3 +388,34 @@ class FullyConnectedSoftmax(FullyConnected):
                 Eq(C[x], sum([exp(self._T[i, x])
                               for i in range(self._R.shape[0])])),
                 Eq(self._R[a, b], exp(self._T[a, b]) / C[b])]
+
+
+class Flat(Layer):
+    def __init__(self, input_size, name_allocator_func=alloc,
+                 dim_allocator_func=dim_alloc, generate_code=True):
+        super().__init__(None, input_size, name_allocator_func,
+                         dim_allocator_func, generate_code)
+
+    def _allocate(self, kernel_size, input_size, name_allocator_func,
+                  dim_allocator_func):
+        gridI = Grid(shape=input_size, dimensions=dim_allocator_func(2))
+        I = Function(name=name_allocator_func(), grid=gridI, space_order=0)
+
+        gridR = Grid(shape=input_size[0]*input_size[1],
+                     dimensions=dim_allocator_func(1))
+        R = Function(name=name_allocator_func(), grid=gridR, space_order=0)
+
+        return (None, I, R)
+
+    def execute(self, input_data):
+        self._I.data[:] = input_data
+        return super().execute()
+
+    def equations(self, input_function=None):
+        if input_function is None:
+            input_function = self._I
+
+        a, b = input_function.dimensions
+
+        return [Eq(self._R[a * input_function.shape[0] + b],
+                   input_function[a, b])]
