@@ -178,15 +178,16 @@ class Conv(Layer):
 class Subsampling(Layer):
     def __init__(self, kernel_size, input_size, function,
                  name_allocator_func=alloc, dim_allocator_func=dim_alloc,
-                 stride=(1, 1), padding=(0, 0),
-                 activation=None, generate_code=True):
-        # All sizes are expressed as (rows, columns).
-        self._error_check(kernel_size, input_size, stride, padding)
+                 stride=(1, 1), padding=(0, 0), activation=None,
+                 generate_code=True):
+        # All sizes are expressed as (batch, channel, rows, columns).
+        # error check to be added later
+        # self._error_check(kernel_size, feature_map, stride, padding)
 
         self._kernel_size = kernel_size
         self._function = function
         self._activation = activation
-        self._bias = Constant(name=name_allocator_func())
+        # self._bias = bias
 
         self._stride = stride
         self._padding = padding
@@ -194,82 +195,61 @@ class Subsampling(Layer):
         super().__init__(kernel_size, input_size, name_allocator_func,
                          dim_allocator_func, generate_code)
 
-    def _error_check(self, kernel_size, input_size, stride, padding):
-        if input_size is None or len(input_size) != 2:
-            raise Exception("Input size is incorrect")
-
-        if kernel_size is None or len(kernel_size) != 2:
-            raise Exception("Kernel size is incorrect")
-
-        if stride is None or len(stride) != 2:
-            raise Exception("Stride is incorrect")
-
-        if stride[0] < 1 or stride[1] < 1:
-            raise Exception("Stride cannot be less than 1")
-
-        if padding is None or len(padding) != 2:
-            raise Exception("Padding is incorrect")
-
-        if padding[0] < 0 or padding[1] < 0:
-            raise Exception("Padding cannot be negative")
-
-        map_height = input_size[0] + 2 * padding[0]
-        map_width = input_size[1] + 2 * padding[1]
-        kernel_height, kernel_width = kernel_size
-
-        if (map_height - kernel_height) % stride[0] != 0 or \
-           (map_width - kernel_width) % stride[1] != 0:
-            raise Exception("Stride " + str(stride) + " is not "
-                            "compatible with feature map, kernel and padding "
-                            "sizes")
 
     def _allocate(self, kernel_size, input_size, name_allocator_func,
                   dim_allocator_func):
-        map_height = input_size[0] + 2 * self._padding[0]
-        map_width = input_size[1] + 2 * self._padding[1]
+        map_height = input_size[2] + 2 * self._padding[0]
+        map_width = input_size[3] + 2 * self._padding[1]
         kernel_height, kernel_width = kernel_size
+        
+        a, b, c, d = dim_allocator_func(4)
+        gridB = Grid(shape=(input_size[0], input_size[1], map_height, map_width),
+                     dimensions=(a, b, c, d))
+        B = Function(name='B', grid=gridB, space_order=0)
 
-        gridB = Grid(shape=(map_height, map_width),
-                     dimensions=dim_allocator_func(2))
-        B = Function(name=name_allocator_func(), grid=gridB, space_order=0)
-
-        gridR = Grid(shape=((map_height - kernel_height + self._stride[0])
+        e, f, g, h = dim_allocator_func(4)
+        gridR = Grid(shape=(input_size[0], input_size[1],
+                            (map_height - kernel_height + self._stride[0])
                             // self._stride[0],
                             (map_width - kernel_width + self._stride[1])
                             // self._stride[1]),
-                     dimensions=dim_allocator_func(2))
-        R = Function(name=name_allocator_func(), grid=gridR, space_order=0)
+                     dimensions=(e, f, g, h))
 
+        R = Function(name='R', grid=gridR, space_order=0)
         return (None, B, R)
-
+    
     def execute(self, input_data, bias):
-        map_height = len(input_data) + 2 * self._padding[0]
-
-        for i in range(self._padding[0], map_height - self._padding[0]):
-            self._I.data[i] = \
-                np.concatenate(([0] * self._padding[1],
-                                input_data[i - self._padding[0]],
-                                [0] * self._padding[1]))
-        self._bias.data = bias
-
+        map_height = input_data.shape[2]
+        # add padding to start and end of each row
+        for image in range(input_data.shape[0]):
+            for channel in range(input_data.shape[1]):
+                for i in range(self._padding[0], map_height - self._padding[0]):
+                    self._I.data[image, channel, i] = \
+                        np.concatenate(([0] * self._padding[1],
+                                        input_data[image, channel, i - self._padding[0]],
+                                        [0] * self._padding[1]))
         return super().execute()
 
     def equations(self, input_function=None):
         if input_function is None:
             input_function = self._I
 
-        a, b = input_function.dimensions
+        a, b, c, d = input_function.dimensions
         kernel_height, kernel_width = self._kernel_size
-
-        rhs = self._function([input_function[self._stride[0] * a + i,
-                                             self._stride[1] * b + j]
-                              for i in range(kernel_height)
-                              for j in range(kernel_width)]) + self._bias
-
+        images = input_function.shape[0]
+        channels = input_function.shape[1]
+        equation_sum = []
+        for image in range(images):
+            for channel in range(channels):
+                rhs = self._function([input_function[image, channel, self._stride[0] * c + i,
+                                                     self._stride[1] * d + j]
+                                      for i in range(kernel_height)
+                                      for j in range(kernel_width)])
+                equation_sum.append(Eq(self._R[image, channel, c, d], rhs))
+            #equation_sum.append(Eq(self._R[image,0,channel, b, c], rhs))
         if self._activation is not None:
             rhs = self._activation(rhs)
-
-        return [Eq(self._R[a, b], rhs)]
+        return equation_sum
 
 
 class FullyConnected(Layer):
