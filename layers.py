@@ -187,7 +187,10 @@ class Subsampling(Layer):
         self._kernel_size = kernel_size
         self._function = function
         self._activation = activation
-        # self._bias = bias
+        self._bias = Function(name=name_allocator_func(),
+                              grid=Grid(shape=input_size[1],
+                                        dimensions=dim_allocator_func(1)),
+                              space_order=0)
 
         self._stride = stride
         self._padding = padding
@@ -195,15 +198,15 @@ class Subsampling(Layer):
         super().__init__(kernel_size, input_size, name_allocator_func,
                          dim_allocator_func, generate_code)
 
-
     def _allocate(self, kernel_size, input_size, name_allocator_func,
                   dim_allocator_func):
         map_height = input_size[2] + 2 * self._padding[0]
         map_width = input_size[3] + 2 * self._padding[1]
         kernel_height, kernel_width = kernel_size
-        
+
         a, b, c, d = dim_allocator_func(4)
-        gridB = Grid(shape=(input_size[0], input_size[1], map_height, map_width),
+        gridB = Grid(shape=(input_size[0], input_size[1], map_height,
+                            map_width),
                      dimensions=(a, b, c, d))
         B = Function(name='B', grid=gridB, space_order=0)
 
@@ -217,17 +220,22 @@ class Subsampling(Layer):
 
         R = Function(name='R', grid=gridR, space_order=0)
         return (None, B, R)
-    
+
     def execute(self, input_data, bias):
         map_height = input_data.shape[2]
+
         # add padding to start and end of each row
         for image in range(input_data.shape[0]):
             for channel in range(input_data.shape[1]):
-                for i in range(self._padding[0], map_height - self._padding[0]):
+                for i in range(self._padding[0],
+                               map_height - self._padding[0]):
                     self._I.data[image, channel, i] = \
                         np.concatenate(([0] * self._padding[1],
-                                        input_data[image, channel, i - self._padding[0]],
+                                        input_data[image, channel,
+                                                   i - self._padding[0]],
                                         [0] * self._padding[1]))
+
+        self._bias.data[:] = bias
         return super().execute()
 
     def equations(self, input_function=None):
@@ -241,14 +249,18 @@ class Subsampling(Layer):
         equation_sum = []
         for image in range(images):
             for channel in range(channels):
-                rhs = self._function([input_function[image, channel, self._stride[0] * c + i,
+                rhs = self._function([input_function[image, channel,
+                                                     self._stride[0] * c + i,
                                                      self._stride[1] * d + j]
                                       for i in range(kernel_height)
-                                      for j in range(kernel_width)])
+                                      for j in range(kernel_width)]) \
+                    + self._bias[channel]
+
+                if self._activation is not None:
+                    rhs = self._activation(rhs)
+
                 equation_sum.append(Eq(self._R[image, channel, c, d], rhs))
-            #equation_sum.append(Eq(self._R[image,0,channel, b, c], rhs))
-        if self._activation is not None:
-            rhs = self._activation(rhs)
+
         return equation_sum
 
 
