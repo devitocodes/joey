@@ -11,6 +11,9 @@ class ConvConv(Layer):
     def __init__(self, kernel_size, input_size, name_allocator_func=alloc,
                  dim_allocator_func=dim_alloc, activation=None,
                  generate_code=True):
+        # All sizes are expressed as (rows, columns).
+        # No batches/multiple channels are supported.
+
         self._activation = activation
         self._bias = Constant(name=name_allocator_func())
 
@@ -200,7 +203,8 @@ class Subsampling(Layer):
                  name_allocator_func=alloc, dim_allocator_func=dim_alloc,
                  stride=(1, 1), padding=(0, 0), activation=None,
                  generate_code=True):
-        # All sizes are expressed as (batch, channel, rows, columns).
+        # Kernel size is expressed as (rows, columns).
+        # Input size is expressed as (batch size, channels, rows, columns).
 
         self._error_check(kernel_size, input_size, stride, padding)
 
@@ -257,7 +261,7 @@ class Subsampling(Layer):
         gridB = Grid(shape=(input_size[0], input_size[1], map_height,
                             map_width),
                      dimensions=(a, b, c, d))
-        B = Function(name='B', grid=gridB, space_order=0)
+        B = Function(name=name_allocator_func(), grid=gridB, space_order=0)
 
         e, f, g, h = dim_allocator_func(4)
         gridR = Grid(shape=(input_size[0], input_size[1],
@@ -267,13 +271,13 @@ class Subsampling(Layer):
                             // self._stride[1]),
                      dimensions=(e, f, g, h))
 
-        R = Function(name='R', grid=gridR, space_order=0)
+        R = Function(name=name_allocator_func(), grid=gridR, space_order=0)
         return (None, B, R)
 
     def execute(self, input_data, bias):
         map_height = input_data.shape[2]
 
-        # add padding to start and end of each row
+        # Add padding to the start and end of each row
         for image in range(input_data.shape[0]):
             for channel in range(input_data.shape[1]):
                 for i in range(self._padding[0],
@@ -317,6 +321,9 @@ class FullyConnected(Layer):
     def __init__(self, weight_size, input_size, name_allocator_func=alloc,
                  dim_allocator_func=dim_alloc, activation=None,
                  generate_code=True):
+        # Weight size is expressed as (rows, columns).
+        # Input size is expressed as either (rows, columns) or rows.
+
         self._activation = activation
         self._bias = Constant(name=name_allocator_func())
 
@@ -396,6 +403,8 @@ class FullyConnected(Layer):
 class FullyConnectedSoftmax(FullyConnected):
     def __init__(self, weight_size, input_size, name_allocator_func=alloc,
                  dim_allocator_func=dim_alloc, generate_code=True):
+        # Size units are the same as the FullyConnected ones.
+
         self._name_allocator = name_allocator_func
         self._dim_allocator = dim_allocator_func
         super().__init__(weight_size, input_size, name_allocator_func,
@@ -434,6 +443,8 @@ class FullyConnectedSoftmax(FullyConnected):
 class Flat(Layer):
     def __init__(self, input_size, name_allocator_func=alloc,
                  dim_allocator_func=dim_alloc, generate_code=True):
+        # Input size is expressed as (batch size, channels, rows, columns).
+
         super().__init__(None, input_size, name_allocator_func,
                          dim_allocator_func, generate_code)
 
@@ -457,7 +468,7 @@ class Flat(Layer):
         if input_function is None:
             input_function = self._I
 
-        x, b, c, d = input_function.dimensions
+        _, b, c, d = input_function.dimensions
         batch_size, channels, height, width = input_function.shape
 
         return [Eq(self._R[b * height * width + c * height + d, a],
