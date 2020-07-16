@@ -419,11 +419,12 @@ class Flat(Layer):
 
     def _allocate(self, kernel_size, input_size, name_allocator_func,
                   dim_allocator_func):
-        gridI = Grid(shape=input_size, dimensions=dim_allocator_func(2))
+        gridI = Grid(shape=input_size, dimensions=dim_allocator_func(4))
         I = Function(name=name_allocator_func(), grid=gridI, space_order=0)
 
-        gridR = Grid(shape=input_size[0]*input_size[1],
-                     dimensions=dim_allocator_func(1))
+        gridR = Grid(shape=(input_size[1]*input_size[2]*input_size[3],
+                            input_size[0]),
+                     dimensions=dim_allocator_func(2))
         R = Function(name=name_allocator_func(), grid=gridR, space_order=0)
 
         return (None, I, R)
@@ -436,7 +437,8 @@ class Flat(Layer):
         if input_function is None:
             input_function = self._I
 
-        a, b = input_function.dimensions
+        x, b, c, d = input_function.dimensions
+        batch_size, channels, height, width = input_function.shape
 
-        return [Eq(self._R[a * input_function.shape[0] + b],
-                   input_function[a, b])]
+        return [Eq(self._R[b * height * width + c * height + d, a],
+                   input_function[a, b, c, d]) for a in range(batch_size)]
