@@ -178,22 +178,22 @@ class Conv(Layer):
         a, b, c, d = input_function.dimensions
         kernel_count, kernel_height, kernel_width = self._kernel_size
         batch_size, channels, _, _ = input_function.shape
+        e, f, g = self._K.dimensions
 
         eqs = []
 
         for i in range(batch_size):
-            for j in range(kernel_count):
-                rhs = sum([self._K[j, x, y] *
-                           input_function[i, z, self._stride[0] * c + x,
-                                          self._stride[1] * d + y]
-                           for z in range(channels)
-                           for x in range(kernel_height)
-                           for y in range(kernel_width)]) + self._bias[j]
+            rhs = sum([self._K[e, x, y] *
+                       input_function[i, z, self._stride[0] * c + x,
+                                      self._stride[1] * d + y]
+                       for z in range(channels)
+                       for x in range(kernel_height)
+                       for y in range(kernel_width)]) + self._bias[e]
 
-                if self._activation is not None:
-                    rhs = self._activation(rhs)
+            if self._activation is not None:
+                rhs = self._activation(rhs)
 
-                eqs.append(Eq(self._R[i, j, c, d], rhs))
+            eqs.append(Eq(self._R[i, e, c, d], rhs))
 
         return eqs
 
