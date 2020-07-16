@@ -181,8 +181,8 @@ class Subsampling(Layer):
                  stride=(1, 1), padding=(0, 0), activation=None,
                  generate_code=True):
         # All sizes are expressed as (batch, channel, rows, columns).
-        # error check to be added later
-        # self._error_check(kernel_size, feature_map, stride, padding)
+
+        self._error_check(kernel_size, input_size, stride, padding)
 
         self._kernel_size = kernel_size
         self._function = function
@@ -197,6 +197,35 @@ class Subsampling(Layer):
 
         super().__init__(kernel_size, input_size, name_allocator_func,
                          dim_allocator_func, generate_code)
+
+    def _error_check(self, kernel_size, input_size, stride, padding):
+        if input_size is None or len(input_size) != 4:
+            raise Exception("Input size is incorrect")
+
+        if kernel_size is None or len(kernel_size) != 2:
+            raise Exception("Kernel size is incorrect")
+
+        if stride is None or len(stride) != 2:
+            raise Exception("Stride is incorrect")
+
+        if stride[0] < 1 or stride[1] < 1:
+            raise Exception("Stride cannot be less than 1")
+
+        if padding is None or len(padding) != 2:
+            raise Exception("Padding is incorrect")
+
+        if padding[0] < 0 or padding[1] < 0:
+            raise Exception("Padding cannot be negative")
+
+        map_height = input_size[2] + 2 * padding[0]
+        map_width = input_size[3] + 2 * padding[1]
+        kernel_height, kernel_width = kernel_size
+
+        if (map_height - kernel_height) % stride[0] != 0 or \
+           (map_width - kernel_width) % stride[1] != 0:
+            raise Exception("Stride " + str(stride) + " is not "
+                            "compatible with feature map, kernel and padding "
+                            "sizes")
 
     def _allocate(self, kernel_size, input_size, name_allocator_func,
                   dim_allocator_func):
