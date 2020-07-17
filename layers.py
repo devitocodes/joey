@@ -297,24 +297,17 @@ class Subsampling(Layer):
 
         a, b, c, d = input_function.dimensions
         kernel_height, kernel_width = self._kernel_size
-        images = input_function.shape[0]
-        channels = input_function.shape[1]
-        equation_sum = []
-        for image in range(images):
-            for channel in range(channels):
-                rhs = self._function([input_function[image, channel,
-                                                     self._stride[0] * c + i,
-                                                     self._stride[1] * d + j]
-                                      for i in range(kernel_height)
-                                      for j in range(kernel_width)]) \
-                    + self._bias[channel]
 
-                if self._activation is not None:
-                    rhs = self._activation(rhs)
+        rhs = self._function([input_function[a, b,
+                                             self._stride[0] * c + i,
+                                             self._stride[1] * d + j]
+                              for i in range(kernel_height)
+                              for j in range(kernel_width)]) + self._bias[b]
 
-                equation_sum.append(Eq(self._R[image, channel, c, d], rhs))
+        if self._activation is not None:
+            rhs = self._activation(rhs)
 
-        return equation_sum
+        return [Eq(self._R[a, b, c, d], rhs)]
 
 
 class FullyConnected(Layer):
