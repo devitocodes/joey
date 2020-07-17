@@ -80,12 +80,16 @@ class Conv(Layer):
                  name_allocator_func=alloc, dim_allocator_func=dim_alloc,
                  stride=(1, 1), padding=(0, 0),
                  activation=None, generate_code=True):
-        # Kernel size is expressed as (kernel count, rows, columns).
+        # Kernel size argument (kernel_size) is expressed as
+        # (output channels / kernel count, rows, columns).
+        # Internal kernel size (self._kernel_size) is expressed as
+        # (output channels / kernel count, input channels, rows, columns).
         # Input size is expressed as (batch size, channels, rows, columns).
 
         self._error_check(kernel_size, input_size, stride, padding)
 
-        self._kernel_size = kernel_size
+        self._kernel_size = (kernel_size[0], input_size[1], kernel_size[1],
+                             kernel_size[2])
         self._activation = activation
         self._bias = Function(name=name_allocator_func(),
                               grid=Grid(shape=kernel_size[0],
@@ -95,7 +99,7 @@ class Conv(Layer):
         self._stride = stride
         self._padding = padding
 
-        super().__init__(kernel_size, input_size, name_allocator_func,
+        super().__init__(self._kernel_size, input_size, name_allocator_func,
                          dim_allocator_func, generate_code)
 
     def _error_check(self, kernel_size, input_size, stride, padding):
@@ -119,7 +123,7 @@ class Conv(Layer):
 
         map_height = input_size[2] + 2 * padding[0]
         map_width = input_size[3] + 2 * padding[1]
-        kernel_count, kernel_height, kernel_width = kernel_size
+        _, kernel_height, kernel_width = kernel_size
 
         if (map_height - kernel_height) % stride[0] != 0 or \
            (map_width - kernel_width) % stride[1] != 0:
@@ -131,9 +135,9 @@ class Conv(Layer):
                   dim_allocator_func):
         map_height = input_size[2] + 2 * self._padding[0]
         map_width = input_size[3] + 2 * self._padding[1]
-        kernel_count, kernel_height, kernel_width = kernel_size
+        _, _, kernel_height, kernel_width = kernel_size
 
-        gridK = Grid(shape=kernel_size, dimensions=dim_allocator_func(3))
+        gridK = Grid(shape=kernel_size, dimensions=dim_allocator_func(4))
         K = Function(name=name_allocator_func(), grid=gridK, space_order=0)
 
         gridB = Grid(shape=(input_size[0], input_size[1],
@@ -169,6 +173,8 @@ class Conv(Layer):
 
         self._bias.data[:] = bias
 
+        self._R.data[:] = 0
+
         return super().execute()
 
     def equations(self, input_function=None):
@@ -176,24 +182,22 @@ class Conv(Layer):
             input_function = self._I
 
         a, b, c, d = input_function.dimensions
-        kernel_count, kernel_height, kernel_width = self._kernel_size
+        _, _, kernel_height, kernel_width = self._kernel_size
         batch_size, channels, _, _ = input_function.shape
-        e, f, g = self._K.dimensions
+        e, f, g, h = self._K.dimensions
 
-        eqs = []
+        rhs = sum([self._K[e, f, x, y] *
+                   input_function[a, f, self._stride[0] * c + x,
+                                  self._stride[1] * d + y]
+                   for x in range(kernel_height)
+                   for y in range(kernel_width)])
 
-        for i in range(batch_size):
-            rhs = sum([self._K[e, x, y] *
-                       input_function[i, z, self._stride[0] * c + x,
-                                      self._stride[1] * d + y]
-                       for z in range(channels)
-                       for x in range(kernel_height)
-                       for y in range(kernel_width)]) + self._bias[e]
+        eqs = [Inc(self._R[a, e, c, d], rhs),
+               Inc(self._R[a, e, c, d], self._bias[e])]
 
-            if self._activation is not None:
-                rhs = self._activation(rhs)
-
-            eqs.append(Eq(self._R[i, e, c, d], rhs))
+        if self._activation is not None:
+            eqs.append(Eq(self._R[a, e, c, d],
+                          self._activation(self._R[a, e, c, d])))
 
         return eqs
 
