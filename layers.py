@@ -280,7 +280,6 @@ class Subsampling(Layer):
 
     def execute(self, input_data, bias):
         map_height = input_data.shape[2]
-
         # Add padding to the start and end of each row
         for image in range(input_data.shape[0]):
             for channel in range(input_data.shape[1]):
@@ -291,7 +290,6 @@ class Subsampling(Layer):
                                         input_data[image, channel,
                                                    i - self._padding[0]],
                                         [0] * self._padding[1]))
-
         self._bias.data[:] = bias
         return super().execute()
 
@@ -299,7 +297,7 @@ class Subsampling(Layer):
         if input_function is None:
             input_function = self._I
 
-        a, b, c, d = input_function.dimensions
+        a, b, c, d = self._R.dimensions
         kernel_height, kernel_width = self._kernel_size
 
         rhs = self._function([input_function[a, b,
@@ -322,7 +320,10 @@ class FullyConnected(Layer):
         # Input size is expressed as either (rows, columns) or rows.
 
         self._activation = activation
-        self._bias = Constant(name=name_allocator_func())
+        self._bias = Function(name=name_allocator_func(),
+                              grid=Grid(shape=weight_size[0],
+                                        dimensions=dim_allocator_func(1)),
+                              space_order=0)
 
         super().__init__(weight_size, input_size, name_allocator_func,
                          dim_allocator_func, generate_code)
@@ -363,7 +364,7 @@ class FullyConnected(Layer):
             self._K.data[:] = weight_data
 
         self._I.data[:] = input_data
-        self._bias.data = bias
+        self._bias.data[:] = bias
 
         if self._activation is not None:
             self._T.data[:] = 0
