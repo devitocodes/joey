@@ -79,14 +79,16 @@ class Conv(Layer):
     def __init__(self, kernel_size, input_size,
                  name_allocator_func=alloc, dim_allocator_func=dim_alloc,
                  stride=(1, 1), padding=(0, 0),
-                 activation=None, generate_code=True):
+                 activation=None, generate_code=True,
+                 strict_stride_check=True):
         # Kernel size argument (kernel_size) is expressed as
         # (output channels / kernel count, rows, columns).
         # Internal kernel size (self._kernel_size) is expressed as
         # (output channels / kernel count, input channels, rows, columns).
         # Input size is expressed as (batch size, channels, rows, columns).
 
-        self._error_check(kernel_size, input_size, stride, padding)
+        self._error_check(kernel_size, input_size, stride, padding,
+                          strict_stride_check)
 
         self._kernel_size = (kernel_size[0], input_size[1], kernel_size[1],
                              kernel_size[2])
@@ -102,7 +104,8 @@ class Conv(Layer):
         super().__init__(self._kernel_size, input_size, name_allocator_func,
                          dim_allocator_func, generate_code)
 
-    def _error_check(self, kernel_size, input_size, stride, padding):
+    def _error_check(self, kernel_size, input_size, stride, padding,
+                     strict_stride_check):
         if input_size is None or len(input_size) != 4:
             raise Exception("Input size is incorrect")
 
@@ -121,15 +124,16 @@ class Conv(Layer):
         if padding[0] < 0 or padding[1] < 0:
             raise Exception("Padding cannot be negative")
 
-        map_height = input_size[2] + 2 * padding[0]
-        map_width = input_size[3] + 2 * padding[1]
-        _, kernel_height, kernel_width = kernel_size
+        if strict_stride_check:
+            map_height = input_size[2] + 2 * padding[0]
+            map_width = input_size[3] + 2 * padding[1]
+            _, kernel_height, kernel_width = kernel_size
 
-        if (map_height - kernel_height) % stride[0] != 0 or \
-           (map_width - kernel_width) % stride[1] != 0:
-            raise Exception("Stride " + str(stride) + " is not "
-                            "compatible with feature map, kernel and padding "
-                            "sizes")
+            if (map_height - kernel_height) % stride[0] != 0 or \
+               (map_width - kernel_width) % stride[1] != 0:
+                raise Exception("Stride " + str(stride) + " is not "
+                                "compatible with feature map, kernel and "
+                                "padding sizes")
 
     def _allocate(self, kernel_size, input_size, name_allocator_func,
                   dim_allocator_func):
@@ -206,11 +210,12 @@ class Subsampling(Layer):
     def __init__(self, kernel_size, input_size, function,
                  name_allocator_func=alloc, dim_allocator_func=dim_alloc,
                  stride=(1, 1), padding=(0, 0), activation=None,
-                 generate_code=True):
+                 generate_code=True, strict_stride_check=True):
         # Kernel size is expressed as (rows, columns).
         # Input size is expressed as (batch size, channels, rows, columns).
 
-        self._error_check(kernel_size, input_size, stride, padding)
+        self._error_check(kernel_size, input_size, stride, padding,
+                          strict_stride_check)
 
         self._kernel_size = kernel_size
         self._function = function
@@ -226,7 +231,8 @@ class Subsampling(Layer):
         super().__init__(kernel_size, input_size, name_allocator_func,
                          dim_allocator_func, generate_code)
 
-    def _error_check(self, kernel_size, input_size, stride, padding):
+    def _error_check(self, kernel_size, input_size, stride, padding,
+                     strict_stride_check):
         if input_size is None or len(input_size) != 4:
             raise Exception("Input size is incorrect")
 
@@ -245,15 +251,16 @@ class Subsampling(Layer):
         if padding[0] < 0 or padding[1] < 0:
             raise Exception("Padding cannot be negative")
 
-        map_height = input_size[2] + 2 * padding[0]
-        map_width = input_size[3] + 2 * padding[1]
-        kernel_height, kernel_width = kernel_size
+        if strict_stride_check:
+            map_height = input_size[2] + 2 * padding[0]
+            map_width = input_size[3] + 2 * padding[1]
+            kernel_height, kernel_width = kernel_size
 
-        if (map_height - kernel_height) % stride[0] != 0 or \
-           (map_width - kernel_width) % stride[1] != 0:
-            raise Exception("Stride " + str(stride) + " is not "
-                            "compatible with feature map, kernel and padding "
-                            "sizes")
+            if (map_height - kernel_height) % stride[0] != 0 or \
+               (map_width - kernel_width) % stride[1] != 0:
+                raise Exception("Stride " + str(stride) + " is not "
+                                "compatible with feature map, kernel and "
+                                "padding sizes")
 
     def _allocate(self, kernel_size, input_size, name_allocator_func,
                   dim_allocator_func):
@@ -379,22 +386,16 @@ class FullyConnected(Layer):
 
         a, b, c = self._dimensions
 
-        if self._activation is not None:
-            if self._input_is_vector:
-                eqs = [Inc(self._T[a], self._K[a, b] * input_function[b])]
-            else:
-                eqs = [Inc(self._T[a, c],
-                           self._K[a, b] * input_function[b, c])]
-
-            eqs.append(Eq(self._R, self._activation(self._T + self._bias)))
-            return eqs
-
         if self._input_is_vector:
             eqs = [Inc(self._R[a], self._K[a, b] * input_function[b])]
         else:
             eqs = [Inc(self._R[a, c], self._K[a, b] * input_function[b, c])]
 
-        eqs.append(Inc(self._R, self._bias))
+        eqs.append(Inc(self._R[a, c], self._bias[a]))
+
+        if self._activation is not None:
+            eqs.append(Eq(self._R, self._activation(self._R)))
+
         return eqs
 
 
