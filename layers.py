@@ -15,7 +15,6 @@ class ConvConv(Layer):
         # No batches/multiple channels are supported.
 
         self._activation = activation
-        self._bias = Constant(name=name_allocator_func())
 
         super().__init__(kernel_size, input_size, name_allocator_func,
                          dim_allocator_func, generate_code)
@@ -42,8 +41,9 @@ class ConvConv(Layer):
 
         B = Function(name=name_allocator_func(), grid=gridBR, space_order=1)
         R = Function(name=name_allocator_func(), grid=gridBR, space_order=0)
+        bias = Constant(name=name_allocator_func())
 
-        return (A, B, R)
+        return (A, B, R, bias)
 
     def execute(self, input_data, bias, kernel_data=None):
         if kernel_data is not None:
@@ -93,10 +93,6 @@ class Conv(Layer):
         self._kernel_size = (kernel_size[0], input_size[1], kernel_size[1],
                              kernel_size[2])
         self._activation = activation
-        self._bias = Function(name=name_allocator_func(),
-                              grid=Grid(shape=kernel_size[0],
-                                        dimensions=dim_allocator_func(1)),
-                              space_order=0)
 
         self._stride = stride
         self._padding = padding
@@ -157,7 +153,12 @@ class Conv(Layer):
                      dimensions=dim_allocator_func(4))
         R = Function(name=name_allocator_func(), grid=gridR, space_order=0)
 
-        return (K, B, R)
+        bias = Function(name=name_allocator_func(),
+                        grid=Grid(shape=kernel_size[0],
+                                  dimensions=dim_allocator_func(1)),
+                        space_order=0)
+
+        return (K, B, R, bias)
 
     def execute(self, input_data, bias, kernel_data=None):
         map_height = input_data.shape[2] + 2 * self._padding[0]
@@ -220,10 +221,6 @@ class Subsampling(Layer):
         self._kernel_size = kernel_size
         self._function = function
         self._activation = activation
-        self._bias = Function(name=name_allocator_func(),
-                              grid=Grid(shape=input_size[1],
-                                        dimensions=dim_allocator_func(1)),
-                              space_order=0)
 
         self._stride = stride
         self._padding = padding
@@ -283,7 +280,13 @@ class Subsampling(Layer):
                      dimensions=(e, f, g, h))
 
         R = Function(name=name_allocator_func(), grid=gridR, space_order=0)
-        return (None, B, R)
+
+        bias = Function(name=name_allocator_func(),
+                        grid=Grid(shape=input_size[1],
+                                  dimensions=dim_allocator_func(1)),
+                        space_order=0)
+
+        return (None, B, R, bias)
 
     def execute(self, input_data, bias):
         map_height = input_data.shape[2]
@@ -327,10 +330,6 @@ class FullyConnected(Layer):
         # Input size is expressed as either (rows, columns) or rows.
 
         self._activation = activation
-        self._bias = Function(name=name_allocator_func(),
-                              grid=Grid(shape=weight_size[0],
-                                        dimensions=dim_allocator_func(1)),
-                              space_order=0)
 
         super().__init__(weight_size, input_size, name_allocator_func,
                          dim_allocator_func, generate_code)
@@ -364,7 +363,12 @@ class FullyConnected(Layer):
             self._T = Function(name=name_allocator_func(), grid=gridR,
                                space_order=0)
 
-        return (W, V, R)
+        bias = Function(name=name_allocator_func(),
+                        grid=Grid(shape=weight_size[0],
+                                  dimensions=dim_allocator_func(1)),
+                        space_order=0)
+
+        return (W, V, R, bias)
 
     def execute(self, input_data, bias, weight_data=None):
         if weight_data is not None:
@@ -457,7 +461,7 @@ class Flat(Layer):
                      dimensions=dim_allocator_func(2))
         R = Function(name=name_allocator_func(), grid=gridR, space_order=0)
 
-        return (None, I, R)
+        return (None, I, R, None)
 
     def execute(self, input_data):
         self._I.data[:] = input_data

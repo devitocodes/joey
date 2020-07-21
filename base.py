@@ -28,10 +28,11 @@ class Layer(ABC):
                  input_size, name_allocator_func=default_name_allocator,
                  dim_allocator_func=default_dim_allocator,
                  generate_code=True):
-        self._K, self._I, self._R = self._allocate(kernel_size,
-                                                   input_size,
-                                                   name_allocator_func,
-                                                   dim_allocator_func)
+        self._K, self._I, self._R, self._bias = \
+            self._allocate(kernel_size,
+                           input_size,
+                           name_allocator_func,
+                           dim_allocator_func)
 
         if generate_code:
             self._op = Operator(self.equations())
@@ -49,12 +50,17 @@ class Layer(ABC):
     def result(self):
         return self._R
 
+    @property
+    def bias(self):
+        return self._bias
+
     @abstractmethod
     def _allocate(self, kernel_size, input_size, name_allocator_func,
-                  dim_allocator_func) -> (Function, Function, Function):
-        # This method should return a (Function, Function, Function) triple
-        # corresponding to a kernel, input and output of the layer
-        # respectively.
+                  dim_allocator_func) -> (Function, Function, Function,
+                                          Function):
+        # This method should return a (Function, Function, Function, Function)
+        # quadruple corresponding to a kernel, input, output and bias of
+        # the layer respectively.
         pass
 
     @abstractmethod
