@@ -185,7 +185,7 @@ class Conv(Layer):
         if input_function is None:
             input_function = self._I
 
-        a, b, c, d = input_function.dimensions
+        a, b, c, d = self._R.dimensions
         _, _, kernel_height, kernel_width = self._kernel_size
         batch_size, channels, _, _ = input_function.shape
         e, f, g, h = self._K.dimensions
