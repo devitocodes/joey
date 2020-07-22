@@ -71,3 +71,18 @@ class Layer(ABC):
     @abstractmethod
     def equations(self, input_function=None) -> list:
         pass
+
+
+class LossFunction:
+    def __init__(self, calculate_func):
+        self._sum = 0
+        self._count = 0
+        self._calculate = calculate_func
+
+    def add(self, expected, actual):
+        result = self._calculate(expected, actual)
+        self._sum += result
+        self._count += 1
+
+    def average(self):
+        return self._sum / self._count
