@@ -43,7 +43,7 @@ class ConvConv(Layer):
         R = Function(name=name_allocator_func(), grid=gridBR, space_order=0)
         bias = Constant(name=name_allocator_func())
 
-        return (A, B, R, bias)
+        return (A, B, R, bias, None, None)
 
     def execute(self, input_data, bias, kernel_data=None):
         if kernel_data is not None:
@@ -158,7 +158,17 @@ class Conv(Layer):
                                   dimensions=dim_allocator_func(1)),
                         space_order=0)
 
-        return (K, B, R, bias)
+        kernel_grad = Function(name=name_allocator_func(),
+                               grid=gridK, space_order=0)
+
+        input_grad = Function(name=name_allocator_func(),
+                              grid=Grid(shape=(input_size[1],
+                                               input_size[2],
+                                               input_size[3]),
+                                        dimensions=dim_allocator_func(3)),
+                              space_order=0)
+
+        return (K, B, R, bias, kernel_grad, input_grad)
 
     def execute(self, input_data, bias, kernel_data=None):
         map_height = input_data.shape[2] + 2 * self._padding[0]
@@ -286,7 +296,14 @@ class Subsampling(Layer):
                                   dimensions=dim_allocator_func(1)),
                         space_order=0)
 
-        return (None, B, R, bias)
+        input_grad = Function(name=name_allocator_func(),
+                              grid=Grid(shape=(input_size[1],
+                                               input_size[2],
+                                               input_size[3]),
+                                        dimensions=dim_allocator_func(3)),
+                              space_order=0)
+
+        return (None, B, R, bias, None, input_grad)
 
     def execute(self, input_data, bias):
         map_height = input_data.shape[2]
@@ -348,10 +365,14 @@ class FullyConnected(Layer):
             gridV_dimensions = (b,)
             gridR_dimensions = (a,)
             gridR_shape = weight_size[0]
+            input_grad_grid = Grid(shape=input_size,
+                                   dimensions=dim_allocator_func(1))
         else:
             gridV_dimensions = (b, c)
             gridR_dimensions = (a, c)
             gridR_shape = (weight_size[0], input_size[1])
+            input_grad_grid = Grid(shape=input_size[0],
+                                   dimensions=dim_allocator_func(1))
 
         gridV = Grid(shape=input_size, dimensions=gridV_dimensions)
         V = Function(name=name_allocator_func(), grid=gridV, space_order=0)
@@ -368,7 +389,13 @@ class FullyConnected(Layer):
                                   dimensions=dim_allocator_func(1)),
                         space_order=0)
 
-        return (W, V, R, bias)
+        kernel_grad = Function(name=name_allocator_func(),
+                               grid=gridW, space_order=0)
+
+        input_grad = Function(name=name_allocator_func(),
+                              grid=input_grad_grid, space_order=0)
+
+        return (W, V, R, bias, kernel_grad, input_grad)
 
     def execute(self, input_data, bias, weight_data=None):
         if weight_data is not None:
@@ -461,7 +488,14 @@ class Flat(Layer):
                      dimensions=dim_allocator_func(2))
         R = Function(name=name_allocator_func(), grid=gridR, space_order=0)
 
-        return (None, I, R, None)
+        input_grad = Function(name=name_allocator_func(),
+                              grid=Grid(shape=(input_size[1],
+                                               input_size[2],
+                                               input_size[3]),
+                                        dimensions=dim_allocator_func(3)),
+                              space_order=0)
+
+        return (None, I, R, None, None, input_grad)
 
     def execute(self, input_data):
         self._I.data[:] = input_data
