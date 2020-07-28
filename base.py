@@ -28,7 +28,7 @@ class Layer(ABC):
                  input_size, name_allocator_func=default_name_allocator,
                  dim_allocator_func=default_dim_allocator,
                  generate_code=True):
-        self._K, self._I, self._R, self._bias, self._KG, self._IG, \
+        self._K, self._I, self._R, self._bias, self._KG, self._RG, \
             self._biasG = self._allocate(kernel_size,
                                          input_size,
                                          name_allocator_func,
@@ -59,8 +59,8 @@ class Layer(ABC):
         return self._KG
 
     @property
-    def input_gradients(self):
-        return self._IG
+    def result_gradients(self):
+        return self._RG
 
     @property
     def bias_gradients(self):
@@ -73,10 +73,10 @@ class Layer(ABC):
                                           Function):
         # This method should return a (Function, Function, Function, Function,
         # Function, Function, Function) object corresponding to a kernel,
-        # input, output, bias, kernel gradients, input gradients and bias
+        # input, output, bias, kernel gradients, output gradients and bias
         # gradients of the layer respectively.
         #
-        # Kernel, input and bias gradients are for backpropagation purposes.
+        # Kernel, output and bias gradients are for backpropagation purposes.
         pass
 
     @abstractmethod
