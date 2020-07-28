@@ -472,7 +472,7 @@ class FullyConnectedSoftmax(FullyConnected):
         a, b, c = self._dimensions
 
         return [Inc(self._T[a, c], self._K[a, b] * input_function[b, c]),
-                Inc(self._T, self._bias),
+                Inc(self._T[a, c], self._bias[a]),
                 Eq(C[x], sum([exp(self._T[i, x])
                               for i in range(self._R.shape[0])])),
                 Eq(self._R[a, b], exp(self._T[a, b]) / C[b])]
