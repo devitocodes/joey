@@ -35,12 +35,15 @@ class ConvConv(Layer):
 
         gridA = Grid(shape=kernel_size,
                      dimensions=dim_allocator_func(2))
-        A = Function(name=name_allocator_func(), grid=gridA, space_order=0)
+        A = Function(name=name_allocator_func(), grid=gridA, space_order=0,
+                     dtype=np.float64)
 
         gridBR = Grid(shape=input_size)
 
-        B = Function(name=name_allocator_func(), grid=gridBR, space_order=1)
-        R = Function(name=name_allocator_func(), grid=gridBR, space_order=0)
+        B = Function(name=name_allocator_func(), grid=gridBR, space_order=1,
+                     dtype=np.float64)
+        R = Function(name=name_allocator_func(), grid=gridBR, space_order=0,
+                     dtype=np.float64)
         bias = Constant(name=name_allocator_func())
 
         return (A, B, R, bias, None, None, None)
@@ -138,12 +141,14 @@ class Conv(Layer):
         _, _, kernel_height, kernel_width = kernel_size
 
         gridK = Grid(shape=kernel_size, dimensions=dim_allocator_func(4))
-        K = Function(name=name_allocator_func(), grid=gridK, space_order=0)
+        K = Function(name=name_allocator_func(), grid=gridK, space_order=0,
+                     dtype=np.float64)
 
         gridB = Grid(shape=(input_size[0], input_size[1],
                             map_height, map_width),
                      dimensions=dim_allocator_func(4))
-        B = Function(name=name_allocator_func(), grid=gridB, space_order=0)
+        B = Function(name=name_allocator_func(), grid=gridB, space_order=0,
+                     dtype=np.float64)
 
         gridR = Grid(shape=(input_size[0], kernel_size[0],
                             (map_height - kernel_height + self._stride[0])
@@ -151,25 +156,26 @@ class Conv(Layer):
                             (map_width - kernel_width + self._stride[1])
                             // self._stride[1]),
                      dimensions=dim_allocator_func(4))
-        R = Function(name=name_allocator_func(), grid=gridR, space_order=0)
+        R = Function(name=name_allocator_func(), grid=gridR, space_order=0,
+                     dtype=np.float64)
 
         bias_grid = Grid(shape=kernel_size[0],
                          dimensions=dim_allocator_func(1))
         bias = Function(name=name_allocator_func(), grid=bias_grid,
-                        space_order=0)
+                        space_order=0, dtype=np.float64)
 
         kernel_grad = Function(name=name_allocator_func(),
-                               grid=gridK, space_order=0)
+                               grid=gridK, space_order=0, dtype=np.float64)
 
         output_grad = Function(name=name_allocator_func(),
                                grid=Grid(shape=(gridR.shape[1],
                                                 gridR.shape[2],
                                                 gridR.shape[3]),
                                          dimensions=dim_allocator_func(3)),
-                               space_order=0)
+                               space_order=0, dtype=np.float64)
 
         bias_grad = Function(name=name_allocator_func(),
-                             grid=bias_grid, space_order=0)
+                             grid=bias_grid, space_order=0, dtype=np.float64)
 
         return (K, B, R, bias, kernel_grad, output_grad, bias_grad)
 
@@ -282,7 +288,8 @@ class Subsampling(Layer):
         gridB = Grid(shape=(input_size[0], input_size[1], map_height,
                             map_width),
                      dimensions=(a, b, c, d))
-        B = Function(name=name_allocator_func(), grid=gridB, space_order=0)
+        B = Function(name=name_allocator_func(), grid=gridB, space_order=0,
+                     dtype=np.float64)
 
         e, f, g, h = dim_allocator_func(4)
         gridR = Grid(shape=(input_size[0], input_size[1],
@@ -292,21 +299,22 @@ class Subsampling(Layer):
                             // self._stride[1]),
                      dimensions=(e, f, g, h))
 
-        R = Function(name=name_allocator_func(), grid=gridR, space_order=0)
+        R = Function(name=name_allocator_func(), grid=gridR, space_order=0,
+                     dtype=np.float64)
 
         bias_grid = Grid(shape=input_size[1],
                          dimensions=dim_allocator_func(1))
         bias = Function(name=name_allocator_func(), grid=bias_grid,
-                        space_order=0)
+                        space_order=0, dtype=np.float64)
 
         output_grad = Function(name=name_allocator_func(),
                                grid=Grid(shape=(gridR.shape[1],
                                                 gridR.shape[2],
                                                 gridR.shape[3]),
                                          dimensions=dim_allocator_func(3)),
-                               space_order=0)
+                               space_order=0, dtype=np.float64)
         bias_grad = Function(name=name_allocator_func(), grid=bias_grid,
-                             space_order=0)
+                             space_order=0, dtype=np.float64)
 
         return (None, B, R, bias, None, output_grad, bias_grad)
 
@@ -364,7 +372,8 @@ class FullyConnected(Layer):
         a, b, c = self._dimensions
 
         gridW = Grid(shape=weight_size, dimensions=(a, b))
-        W = Function(name=name_allocator_func(), grid=gridW, space_order=0)
+        W = Function(name=name_allocator_func(), grid=gridW, space_order=0,
+                     dtype=np.float64)
 
         if self._input_is_vector:
             gridV_dimensions = (b,)
@@ -380,28 +389,31 @@ class FullyConnected(Layer):
                                     dimensions=dim_allocator_func(1))
 
         gridV = Grid(shape=input_size, dimensions=gridV_dimensions)
-        V = Function(name=name_allocator_func(), grid=gridV, space_order=0)
+        V = Function(name=name_allocator_func(), grid=gridV, space_order=0,
+                     dtype=np.float64)
 
         gridR = Grid(shape=gridR_shape, dimensions=gridR_dimensions)
-        R = Function(name=name_allocator_func(), grid=gridR, space_order=0)
+        R = Function(name=name_allocator_func(), grid=gridR, space_order=0,
+                     dtype=np.float64)
 
         if self._activation is not None:
             self._T = Function(name=name_allocator_func(), grid=gridR,
-                               space_order=0)
+                               space_order=0, dtype=np.float64)
 
         bias_grid = Grid(shape=weight_size[0],
                          dimensions=dim_allocator_func(1))
         bias = Function(name=name_allocator_func(), grid=bias_grid,
-                        space_order=0)
+                        space_order=0, dtype=np.float64)
 
         kernel_grad = Function(name=name_allocator_func(),
-                               grid=gridW, space_order=0)
+                               grid=gridW, space_order=0, dtype=np.float64)
 
         output_grad = Function(name=name_allocator_func(),
-                               grid=output_grad_grid, space_order=0)
+                               grid=output_grad_grid, space_order=0,
+                               dtype=np.float64)
 
         bias_grad = Function(name=name_allocator_func(),
-                             grid=bias_grid, space_order=0)
+                             grid=bias_grid, space_order=0, dtype=np.float64)
 
         return (W, V, R, bias, kernel_grad, output_grad, bias_grad)
 
@@ -467,7 +479,8 @@ class FullyConnectedSoftmax(FullyConnected):
 
     def _equations_matrix(self, input_function):
         gridC = Grid(shape=self._R.shape[1], dimensions=self._dim_allocator(1))
-        C = Function(name=self._name_allocator(), grid=gridC, space_order=0)
+        C = Function(name=self._name_allocator(), grid=gridC, space_order=0,
+                     dtype=np.float64)
         x = C.dimensions[0]
         a, b, c = self._dimensions
 
@@ -489,17 +502,19 @@ class Flat(Layer):
     def _allocate(self, kernel_size, input_size, name_allocator_func,
                   dim_allocator_func):
         gridI = Grid(shape=input_size, dimensions=dim_allocator_func(4))
-        I = Function(name=name_allocator_func(), grid=gridI, space_order=0)
+        I = Function(name=name_allocator_func(), grid=gridI, space_order=0,
+                     dtype=np.float64)
 
         gridR = Grid(shape=(input_size[1]*input_size[2]*input_size[3],
                             input_size[0]),
                      dimensions=dim_allocator_func(2))
-        R = Function(name=name_allocator_func(), grid=gridR, space_order=0)
+        R = Function(name=name_allocator_func(), grid=gridR, space_order=0,
+                     dtype=np.float64)
 
         output_grad = Function(name=name_allocator_func(),
                                grid=Grid(shape=gridR.shape[0],
                                          dimensions=dim_allocator_func(1)),
-                               space_order=0)
+                               space_order=0, dtype=np.float64)
 
         return (None, I, R, None, None, output_grad, None)
 
