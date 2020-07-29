@@ -2,7 +2,7 @@ from devito.ml import Layer
 from devito.ml import default_name_allocator as alloc
 from devito.ml import default_dim_allocator as dim_alloc
 from devito import Grid, Function, Constant, Eq, Inc
-from sympy import exp
+from sympy import exp, Max
 import numpy as np
 
 
@@ -481,14 +481,18 @@ class FullyConnectedSoftmax(FullyConnected):
         gridC = Grid(shape=self._R.shape[1], dimensions=self._dim_allocator(1))
         C = Function(name=self._name_allocator(), grid=gridC, space_order=0,
                      dtype=np.float64)
+        M = Function(name=self._name_allocator(), grid=gridC, space_order=0,
+                     dtype=np.float64)
         x = C.dimensions[0]
         a, b, c = self._dimensions
 
         return [Inc(self._T[a, c], self._K[a, b] * input_function[b, c]),
                 Inc(self._T[a, c], self._bias[a]),
-                Eq(C[x], sum([exp(self._T[i, x])
+                Eq(M[x], Max(*[self._T[i, x]
+                               for i in range(self._R.shape[0])])),
+                Eq(C[x], sum([exp(self._T[i, x] - M[x])
                               for i in range(self._R.shape[0])])),
-                Eq(self._R[a, b], exp(self._T[a, b]) / C[b])]
+                Eq(self._R[a, b], exp(self._T[a, b] - M[b]) / C[b])]
 
 
 class Flat(Layer):
