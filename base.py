@@ -66,6 +66,32 @@ class Layer(ABC):
     def bias_gradients(self):
         return self._biasG
 
+    @property
+    def pytorch_parameters(self):
+        from torch import as_tensor
+        from torch.nn import Parameter
+
+        kernel_parameter = None
+        bias_parameter = None
+
+        if self._K is not None:
+            kernel_tensor = as_tensor(self._K.data)
+
+            if self._KG is not None:
+                kernel_tensor.grad = as_tensor(self._KG.data)
+
+            kernel_parameter = Parameter(kernel_tensor, requires_grad=False)
+
+        if self._bias is not None:
+            bias_tensor = as_tensor(self._bias.data)
+
+            if self._biasG is not None:
+                bias_tensor.grad = as_tensor(self._biasG.data)
+
+            bias_parameter = Parameter(bias_tensor, requires_grad=False)
+
+        return (kernel_parameter, bias_parameter)
+
     @abstractmethod
     def _allocate(self, kernel_size, input_size, name_allocator_func,
                   dim_allocator_func) -> (Function, Function, Function,
