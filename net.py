@@ -8,7 +8,7 @@ from sympy import And
 
 
 class Net:
-    def __init__(self, layers: list(ml.Layer)):
+    def __init__(self, layers: list):
         self._layers = layers
         self._batch_constant = Constant(name=alloc())
 
