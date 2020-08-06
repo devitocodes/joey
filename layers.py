@@ -322,6 +322,10 @@ class Subsampling(Layer):
     def stride(self):
         return self._stride
 
+    @property
+    def kernel_size(self):
+        return self._kernel_size
+
     def execute(self, input_data, bias):
         map_height = input_data.shape[2]
         # Add padding to the start and end of each row
