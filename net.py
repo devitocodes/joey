@@ -1,7 +1,7 @@
 import devito.ml as ml
 import numpy as np
 from devito import Eq, Inc, Operator, ConditionalDimension, Ne, Function, \
-    Constant, Grid
+    Constant
 from devito.ml import default_name_allocator as alloc
 from devito.ml import default_dim_allocator as dim_alloc
 from sympy import And
@@ -10,7 +10,8 @@ from sympy import And
 class Net:
     def __init__(self, layers: list):
         self._layers = layers
-        self._batch_constant = Constant(name=alloc())
+        self._batch_constant = Constant(name='batch', dtype=np.int32)
+        self._backward_arg_dict = {}
 
         eqs = self._gen_eqs()
         backprop_eqs = self._gen_backprop_eqs()
@@ -26,7 +27,7 @@ class Net:
                 parameters.append(bias_parameter)
 
         self._parameters = parameters
-        self._init_paremeters()
+        self._init_parameters()
 
         self._forward_operator = Operator(eqs)
         self._backward_operator = Operator(backprop_eqs)
@@ -49,7 +50,7 @@ class Net:
 
         return eqs
 
-    def _gen_backprop_eqs(self, backprop_loss_eqs):
+    def _gen_backprop_eqs(self):
         eqs = []
 
         for i in range(len(self._layers) - 1, -1, -1):
@@ -65,7 +66,7 @@ class Net:
 
             layer = self._layers[i]
 
-            if issubclass(layer, ml.FullyConnected):
+            if issubclass(type(layer), ml.FullyConnected):
                 eqs += self._fully_connected_backprop_eqs(layer, prev_layer,
                                                           next_layer)
             elif type(layer) == ml.Subsampling:
@@ -110,11 +111,18 @@ class Net:
             return []
 
         a, b = dim_alloc(2)
-        Grid(shape=layer.kernel_size, dimensions=(a, b))
+        self._backward_arg_dict[a.name + '_M'] = layer.kernel_size[0] - 1
+        self._backward_arg_dict[b.name + '_M'] = layer.kernel_size[1] - 1
         processed = Function(name=alloc(), grid=layer.result.grid,
                              space_order=0, dtype=np.float64)
 
         dims = layer.result.dimensions
+
+        # The first dimension corresponding to a batch index must be
+        # discarded here.
+        dims = dims[1:]
+
+        next_dims = next_layer.result_gradients.dimensions
 
         stride_rows, stride_cols = layer.stride
 
@@ -236,8 +244,9 @@ class Net:
 
         for i in range(batch_size):
             self._batch_constant.data = i
-            loss_gradient_func(self._layers[-1], i)
-            self._backward_operator.apply()
+            self._layers[-1].result_gradients.data[:] = \
+                loss_gradient_func(self._layers[-1], i)
+            self._backward_operator.apply(**self._backward_arg_dict)
 
         if pytorch_optimizer is not None:
             pytorch_optimizer.step()
