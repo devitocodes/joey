@@ -22,14 +22,26 @@ class ReLU(Activation):
     def backprop_eqs(self, layer, batch_index):
         dims = layer.result_gradients.dimensions
 
-        return [Eq(layer.result_gradients[dims[0], dims[1], dims[2]],
-                   layer.result_gradients[dims[0], dims[1], dims[2]] *
-                   sign(layer.result[batch_index, dims[0], dims[1], dims[2]]))]
+        if len(dims) == 3:
+            return [Eq(layer.result_gradients[dims[0], dims[1], dims[2]],
+                       layer.result_gradients[dims[0], dims[1], dims[2]] *
+                       sign(layer.result[batch_index, dims[0], dims[1],
+                                         dims[2]]))]
+        elif len(dims) == 2:
+            return [Eq(layer.result_gradients[dims[0], dims[1]],
+                       layer.result_gradients[dims[0], dims[1]] *
+                       sign(layer.result[batch_index, dims[0], dims[1]]))]
+        elif len(dims) == 1:
+            return [Eq(layer.result_gradients[dims[0]],
+                       layer.result_gradients[dims[0]] *
+                       sign(layer.result[dims[0], batch_index]))]
+        else:
+            raise NotImplementedError
 
 
 class Dummy(Activation):
     def __init__(self):
-        super().__init__(lambda x: None)
+        super().__init__(lambda x: x)
 
     def backprop_eqs(self, layer, batch_index):
         return []
