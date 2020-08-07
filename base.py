@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from devito import Operator, Function, dimensions
 from devito.ml import Activation
+from devito.ml import activation as activ
 from numpy import array
 
 index = 0
@@ -26,12 +27,14 @@ def default_dim_allocator(count):
 
 class Layer(ABC):
     def __init__(self, kernel_size,
-                 input_size, activation=None,
+                 input_size, activation=activ.Dummy(),
                  name_allocator_func=default_name_allocator,
                  dim_allocator_func=default_dim_allocator,
                  generate_code=True):
-        if activation is not None and not issubclass(type(activation),
-                                                     Activation):
+        if activation is None:
+            activation = activ.Dummy()
+
+        if not issubclass(type(activation), Activation):
             raise Exception("activation must be an instance of Activation or "
                             "its subclass")
 
