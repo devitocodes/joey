@@ -14,10 +14,9 @@ class ConvConv(Layer):
         # All sizes are expressed as (rows, columns).
         # No batches/multiple channels are supported.
 
-        self._activation = activation
-
-        super().__init__(kernel_size, input_size, name_allocator_func,
-                         dim_allocator_func, generate_code)
+        super().__init__(kernel_size, input_size, activation,
+                         name_allocator_func, dim_allocator_func,
+                         generate_code)
 
     def _error_check(self, kernel_size, input_size):
         if kernel_size is None or len(kernel_size) != 2:
@@ -95,13 +94,13 @@ class Conv(Layer):
 
         self._kernel_size = (kernel_size[0], input_size[1], kernel_size[1],
                              kernel_size[2])
-        self._activation = activation
 
         self._stride = stride
         self._padding = padding
 
-        super().__init__(self._kernel_size, input_size, name_allocator_func,
-                         dim_allocator_func, generate_code)
+        super().__init__(self._kernel_size, input_size, activation,
+                         name_allocator_func, dim_allocator_func,
+                         generate_code)
 
     def _error_check(self, kernel_size, input_size, stride, padding,
                      strict_stride_check):
@@ -239,13 +238,13 @@ class Subsampling(Layer):
 
         self._kernel_size = kernel_size
         self._function = function
-        self._activation = activation
 
         self._stride = stride
         self._padding = padding
 
-        super().__init__(kernel_size, input_size, name_allocator_func,
-                         dim_allocator_func, generate_code)
+        super().__init__(kernel_size, input_size, activation,
+                         name_allocator_func, dim_allocator_func,
+                         generate_code)
 
     def _error_check(self, kernel_size, input_size, stride, padding,
                      strict_stride_check):
@@ -302,21 +301,14 @@ class Subsampling(Layer):
         R = Function(name=name_allocator_func(), grid=gridR, space_order=0,
                      dtype=np.float64)
 
-        bias_grid = Grid(shape=input_size[1],
-                         dimensions=dim_allocator_func(1))
-        bias = Function(name=name_allocator_func(), grid=bias_grid,
-                        space_order=0, dtype=np.float64)
-
         output_grad = Function(name=name_allocator_func(),
                                grid=Grid(shape=(gridR.shape[1],
                                                 gridR.shape[2],
                                                 gridR.shape[3]),
                                          dimensions=dim_allocator_func(3)),
                                space_order=0, dtype=np.float64)
-        bias_grad = Function(name=name_allocator_func(), grid=bias_grid,
-                             space_order=0, dtype=np.float64)
 
-        return (None, B, R, bias, None, output_grad, bias_grad)
+        return (None, B, R, None, None, output_grad, None)
 
     @property
     def stride(self):
@@ -352,7 +344,7 @@ class Subsampling(Layer):
                                              self._stride[0] * c + i,
                                              self._stride[1] * d + j]
                               for i in range(kernel_height)
-                              for j in range(kernel_width)]) + self._bias[b]
+                              for j in range(kernel_width)])
 
         if self._activation is not None:
             rhs = self._activation(rhs)
@@ -367,10 +359,9 @@ class FullyConnected(Layer):
         # Weight size is expressed as (rows, columns).
         # Input size is expressed as either (rows, columns) or rows.
 
-        self._activation = activation
-
-        super().__init__(weight_size, input_size, name_allocator_func,
-                         dim_allocator_func, generate_code)
+        super().__init__(weight_size, input_size, activation,
+                         name_allocator_func, dim_allocator_func,
+                         generate_code)
 
     def _allocate(self, weight_size, input_size, name_allocator_func,
                   dim_allocator_func):
@@ -508,7 +499,7 @@ class Flat(Layer):
                  dim_allocator_func=dim_alloc, generate_code=True):
         # Input size is expressed as (batch size, channels, rows, columns).
 
-        super().__init__(None, input_size, name_allocator_func,
+        super().__init__(None, input_size, None, name_allocator_func,
                          dim_allocator_func, generate_code)
 
     def _allocate(self, kernel_size, input_size, name_allocator_func,
