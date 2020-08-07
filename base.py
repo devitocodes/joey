@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from devito import Operator, Function, dimensions
+from devito.ml import Activation
 from numpy import array
 
 index = 0
@@ -25,9 +26,17 @@ def default_dim_allocator(count):
 
 class Layer(ABC):
     def __init__(self, kernel_size,
-                 input_size, name_allocator_func=default_name_allocator,
+                 input_size, activation=None,
+                 name_allocator_func=default_name_allocator,
                  dim_allocator_func=default_dim_allocator,
                  generate_code=True):
+        if activation is not None and not issubclass(type(activation),
+                                                     Activation):
+            raise Exception("activation must be an instance of Activation or "
+                            "its subclass")
+
+        self._activation = activation
+
         self._K, self._I, self._R, self._bias, self._KG, self._RG, \
             self._biasG = self._allocate(kernel_size,
                                          input_size,
@@ -67,6 +76,9 @@ class Layer(ABC):
         return self._biasG
 
     @property
+    def activation(self):
+        return self._activation
+
     def pytorch_parameters(self):
         from torch import as_tensor
         from torch.nn import Parameter
