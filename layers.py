@@ -1,4 +1,5 @@
 from devito.ml import Layer
+from devito.ml import activation
 from devito.ml import default_name_allocator as alloc
 from devito.ml import default_dim_allocator as dim_alloc
 from devito import Grid, Function, Constant, Eq, Inc
@@ -457,7 +458,7 @@ class FullyConnectedSoftmax(FullyConnected):
         self._name_allocator = name_allocator_func
         self._dim_allocator = dim_allocator_func
         super().__init__(weight_size, input_size, name_allocator_func,
-                         dim_allocator_func, lambda a: None, generate_code)
+                         dim_allocator_func, activation.Dummy(), generate_code)
 
     def equations(self, input_function=None):
         if input_function is None:
