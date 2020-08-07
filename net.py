@@ -99,12 +99,13 @@ class Net:
         return [Eq(layer.result_gradients, 0),
                 Inc(layer.result_gradients[dims[0]],
                     prev_layer.kernel[prev_dims[0], dims[0]] *
-                    prev_layer.result_gradients[prev_dims[0]]),
-                Inc(layer.bias_gradients[bias_dims[0]],
-                    layer.result_gradients[bias_dims[0]]),
-                Inc(layer.kernel_gradients[kernel_dims[0], kernel_dims[1]],
-                    next_layer.result[kernel_dims[1], self._batch_constant] *
-                    layer.result_gradients[kernel_dims[0]])]
+                    prev_layer.result_gradients[prev_dims[0]])] + \
+            layer.activation.backprop_eqs(layer, self._batch_constant) + \
+            [Inc(layer.bias_gradients[bias_dims[0]],
+                 layer.result_gradients[bias_dims[0]]),
+             Inc(layer.kernel_gradients[kernel_dims[0], kernel_dims[1]],
+                 next_layer.result[kernel_dims[1], self._batch_constant] *
+                 layer.result_gradients[kernel_dims[0]])]
 
     def _subsampling_backprop_eqs(self, layer, prev_layer, next_layer):
         if next_layer is None:
@@ -121,8 +122,6 @@ class Net:
         # The first dimension corresponding to a batch index must be
         # discarded here.
         dims = dims[1:]
-
-        next_dims = next_layer.result_gradients.dimensions
 
         stride_rows, stride_cols = layer.stride
 
@@ -148,7 +147,9 @@ class Net:
                    layer.result_gradients[dims[0], dims[1], dims[2]],
                    implicit_dims=cd1),
                 Eq(processed[self._batch_constant, dims[0], dims[1], dims[2]],
-                   1, implicit_dims=(a, b, cd1))]
+                   1, implicit_dims=(a, b, cd1))] + \
+            next_layer.activation.backprop_eqs(next_layer,
+                                               self._batch_constant)
 
     def _conv_backprop_eqs(self, layer, prev_layer, next_layer):
         kernel_dims = layer.kernel_gradients.dimensions
@@ -196,7 +197,9 @@ class Net:
                                                kernel_dims[2],
                                                next_dims[2] - width + 1 +
                                                kernel_dims[3]],
-                        implicit_dims=(cd1, cd2))]
+                        implicit_dims=(cd1, cd2))] + \
+                next_layer.activation.backprop_eqs(next_layer,
+                                                   self._batch_constant)
         else:
             eqs.append(Inc(layer.kernel_gradients[kernel_dims[0],
                                                   kernel_dims[1],
@@ -225,7 +228,9 @@ class Net:
                                                next_dims[2]],
                    layer.result_gradients[next_dims[0] * height * width +
                                           next_dims[1] * height +
-                                          next_dims[2]])]
+                                          next_dims[2]])] + \
+            next_layer.activation.backprop_eqs(next_layer,
+                                               self._batch_constant)
 
     @property
     def pytorch_parameters(self):
