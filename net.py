@@ -87,12 +87,20 @@ class Net:
         kernel_dims = layer.kernel_gradients.dimensions
 
         if prev_layer is None:
-            return [Inc(layer.bias_gradients[bias_dims[0]],
+            return [Eq(layer.bias_gradients,
+                       layer.bias_gradients * self._batch_constant),
+                    Inc(layer.bias_gradients[bias_dims[0]],
                     layer.result_gradients[bias_dims[0]]),
+                    Eq(layer.bias_gradients,
+                       layer.bias_gradients / (self._batch_constant + 1)),
+                    Eq(layer.kernel_gradients,
+                       layer.kernel_gradients * self._batch_constant),
                     Inc(layer.kernel_gradients[kernel_dims[0], kernel_dims[1]],
                         next_layer.result[kernel_dims[1],
                                           self._batch_constant] *
-                        layer.result_gradients[kernel_dims[0]])]
+                        layer.result_gradients[kernel_dims[0]]),
+                    Eq(layer.kernel_gradients,
+                       layer.kernel_gradients / (self._batch_constant + 1))]
 
         prev_dims = prev_layer.result_gradients.dimensions
 
@@ -101,11 +109,19 @@ class Net:
                     prev_layer.kernel[prev_dims[0], dims[0]] *
                     prev_layer.result_gradients[prev_dims[0]])] + \
             layer.activation.backprop_eqs(layer, self._batch_constant) + \
-            [Inc(layer.bias_gradients[bias_dims[0]],
+            [Eq(layer.bias_gradients,
+                layer.bias_gradients * self._batch_constant),
+             Inc(layer.bias_gradients[bias_dims[0]],
                  layer.result_gradients[bias_dims[0]]),
+             Eq(layer.bias_gradients,
+                layer.bias_gradients / (self._batch_constant + 1)),
+             Eq(layer.kernel_gradients,
+                layer.kernel_gradients * self._batch_constant),
              Inc(layer.kernel_gradients[kernel_dims[0], kernel_dims[1]],
                  next_layer.result[kernel_dims[1], self._batch_constant] *
-                 layer.result_gradients[kernel_dims[0]])]
+                 layer.result_gradients[kernel_dims[0]]),
+             Eq(layer.kernel_gradients,
+                layer.kernel_gradients / (self._batch_constant + 1))]
 
     def _subsampling_backprop_eqs(self, layer, prev_layer, next_layer):
         if next_layer is None:
@@ -201,15 +217,15 @@ class Net:
                 next_layer.activation.backprop_eqs(next_layer,
                                                    self._batch_constant)
         else:
-            eqs.append(Inc(layer.kernel_gradients[kernel_dims[0],
-                                                  kernel_dims[1],
-                                                  kernel_dims[2],
-                                                  kernel_dims[3]],
-                           layer.result_gradients[kernel_dims[0], dims[1],
-                                                  dims[2]] *
-                           layer.input[self._batch_constant, kernel_dims[1],
-                                       kernel_dims[2] + dims[1],
-                                       kernel_dims[3] + dims[2]]))
+            eqs += [Inc(layer.kernel_gradients[kernel_dims[0],
+                                               kernel_dims[1],
+                                               kernel_dims[2],
+                                               kernel_dims[3]],
+                        layer.result_gradients[kernel_dims[0], dims[1],
+                                               dims[2]] *
+                        layer.input[self._batch_constant, kernel_dims[1],
+                                    kernel_dims[2] + dims[1],
+                                    kernel_dims[3] + dims[2]])]
 
         return eqs
 
