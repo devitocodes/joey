@@ -83,27 +83,25 @@ class Layer(ABC):
         return self._activation
 
     def pytorch_parameters(self):
-        from torch import as_tensor
+        from torch import from_numpy
         from torch.nn import Parameter
 
         kernel_parameter = None
         bias_parameter = None
 
         if self._K is not None:
-            kernel_tensor = as_tensor(self._K.data)
-
-            if self._KG is not None:
-                kernel_tensor.grad = as_tensor(self._KG.data)
-
+            kernel_tensor = from_numpy(self._K.data)
             kernel_parameter = Parameter(kernel_tensor, requires_grad=False)
 
+            if self._KG is not None:
+                kernel_parameter.grad = from_numpy(self._KG.data)
+
         if self._bias is not None:
-            bias_tensor = as_tensor(self._bias.data)
+            bias_tensor = from_numpy(self._bias.data)
+            bias_parameter = Parameter(bias_tensor, requires_grad=False)
 
             if self._biasG is not None:
-                bias_tensor.grad = as_tensor(self._biasG.data)
-
-            bias_parameter = Parameter(bias_tensor, requires_grad=False)
+                bias_parameter.grad = from_numpy(self._biasG.data)
 
         return (kernel_parameter, bias_parameter)
 
