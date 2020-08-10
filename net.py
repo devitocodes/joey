@@ -159,6 +159,7 @@ class Net:
                                                                   dims[2]])))
 
         return [Eq(next_layer.result_gradients, 0),
+                Eq(processed, 0),
                 Eq(next_layer.result_gradients[dims[0], stride_rows * dims[1] +
                                                a, stride_cols * dims[2] + b],
                    layer.result_gradients[dims[0], dims[1], dims[2]],
@@ -266,11 +267,21 @@ class Net:
         return self._parameters
 
     def forward(self, input_data):
+        for layer in self._layers:
+            layer.result.data[:] = 0
+
         self._layers[0].input.data[:] = input_data
         self._forward_operator.apply()
         return self._layers[-1].result.data
 
     def backward(self, loss_gradient_func, pytorch_optimizer=None):
+        for layer in self._layers:
+            if layer.kernel_gradients is not None:
+                layer.kernel_gradients.data[:] = 0
+
+            if layer.bias_gradients is not None:
+                layer.bias_gradients.data[:] = 0
+
         if len(self._layers[-1].result.shape) < 2:
             batch_size = 1
         else:

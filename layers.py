@@ -492,7 +492,8 @@ class FullyConnectedSoftmax(FullyConnected):
                                for i in range(self._R.shape[0])])),
                 Eq(C[x], sum([exp(self._T[i, x] - M[x])
                               for i in range(self._R.shape[0])])),
-                Eq(self._R[a, b], exp(self._T[a, b] - M[b]) / C[b])]
+                Eq(self._R[a, b], exp(self._T[a, b] - M[b]) / C[b]),
+                Eq(self._T, 0)]
 
 
 class Flat(Layer):
