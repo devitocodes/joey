@@ -69,8 +69,8 @@ class Net:
             if issubclass(type(layer), ml.FullyConnected):
                 eqs += self._fully_connected_backprop_eqs(layer, prev_layer,
                                                           next_layer)
-            elif type(layer) == ml.Subsampling:
-                eqs += self._subsampling_backprop_eqs(layer, prev_layer,
+            elif type(layer) == ml.MaxPooling:
+                eqs += self._max_pooling_backprop_eqs(layer, prev_layer,
                                                       next_layer)
             elif type(layer) == ml.Conv:
                 eqs += self._conv_backprop_eqs(layer, prev_layer, next_layer)
@@ -123,7 +123,7 @@ class Net:
              Eq(layer.kernel_gradients,
                 layer.kernel_gradients / (self._batch_constant + 1))]
 
-    def _subsampling_backprop_eqs(self, layer, prev_layer, next_layer):
+    def _max_pooling_backprop_eqs(self, layer, prev_layer, next_layer):
         if next_layer is None:
             return []
 
