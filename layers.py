@@ -1,3 +1,4 @@
+from abc import abstractmethod
 from devito.ml import Layer
 from devito.ml import activation
 from devito.ml import default_name_allocator as alloc
@@ -226,8 +227,8 @@ class Conv(Layer):
         return eqs
 
 
-class Subsampling(Layer):
-    def __init__(self, kernel_size, input_size, function,
+class Pooling(Layer):
+    def __init__(self, kernel_size, input_size,
                  name_allocator_func=alloc, dim_allocator_func=dim_alloc,
                  stride=(1, 1), padding=(0, 0), activation=None,
                  generate_code=True, strict_stride_check=True):
@@ -238,7 +239,6 @@ class Subsampling(Layer):
                           strict_stride_check)
 
         self._kernel_size = kernel_size
-        self._function = function
 
         self._stride = stride
         self._padding = padding
@@ -319,7 +319,7 @@ class Subsampling(Layer):
     def kernel_size(self):
         return self._kernel_size
 
-    def execute(self, input_data, bias):
+    def execute(self, input_data):
         map_height = input_data.shape[2]
         # Add padding to the start and end of each row
         for image in range(input_data.shape[0]):
@@ -331,8 +331,16 @@ class Subsampling(Layer):
                                         input_data[image, channel,
                                                    i - self._padding[0]],
                                         [0] * self._padding[1]))
-        self._bias.data[:] = bias
         return super().execute()
+
+    @abstractmethod
+    def equations(self, input_function=None):
+        pass
+
+
+class MaxPooling(Pooling):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def equations(self, input_function=None):
         if input_function is None:
@@ -341,11 +349,11 @@ class Subsampling(Layer):
         a, b, c, d = self._R.dimensions
         kernel_height, kernel_width = self._kernel_size
 
-        rhs = self._function([input_function[a, b,
-                                             self._stride[0] * c + i,
-                                             self._stride[1] * d + j]
-                              for i in range(kernel_height)
-                              for j in range(kernel_width)])
+        rhs = Max(*[input_function[a, b,
+                                   self._stride[0] * c + i,
+                                   self._stride[1] * d + j]
+                    for i in range(kernel_height)
+                    for j in range(kernel_width)])
 
         if self._activation is not None:
             rhs = self._activation(rhs)
