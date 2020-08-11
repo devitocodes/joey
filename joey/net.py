@@ -1,9 +1,9 @@
-import devito.ml as ml
+import joey as ml
 import numpy as np
 from devito import Eq, Inc, Operator, ConditionalDimension, Ne, Function, \
     Constant
-from devito.ml import default_name_allocator as alloc
-from devito.ml import default_dim_allocator as dim_alloc
+from joey import default_name_allocator as alloc
+from joey import default_dim_allocator as dim_alloc
 from sympy import And
 
 

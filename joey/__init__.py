@@ -1,4 +1,4 @@
-from devito.ml.activation import Activation  # noqa
-from devito.ml.base import *  # noqa
-from devito.ml.layers import *  # noqa
-from devito.ml.net import *  # noqa
+from joey.activation import Activation  # noqa
+from joey.base import *  # noqa
+from joey.layers import *  # noqa
+from joey.net import *  # noqa

@@ -1,8 +1,8 @@
 from abc import abstractmethod
-from devito.ml import Layer
-from devito.ml import activation
-from devito.ml import default_name_allocator as alloc
-from devito.ml import default_dim_allocator as dim_alloc
+from joey import Layer
+from joey import activation
+from joey import default_name_allocator as alloc
+from joey import default_dim_allocator as dim_alloc
 from devito import Grid, Function, Constant, Eq, Inc
 from sympy import exp, Max
 import numpy as np
