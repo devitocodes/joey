@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from devito import Operator, Function, dimensions
-from devito.ml import Activation
-from devito.ml import activation as activ
+from joey import Activation
+from joey import activation as activ
 from numpy import array
 
 index = 0
