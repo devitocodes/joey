@@ -7,6 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
+from utils import compare
 
 
 # PyTorch class
@@ -133,19 +134,6 @@ def mnist(tmpdir_factory):
                                              shuffle=False, num_workers=2)
 
     return (trainloader, testloader)
-
-
-def compare(devito, pytorch):
-    pytorch = pytorch.detach().numpy()
-
-    if devito.shape != pytorch.shape:
-        pytorch = np.transpose(pytorch)
-
-    error = abs(devito - pytorch) / abs(pytorch)
-    max_error = np.nanmax(error)
-
-    if max_error != np.nan:
-        assert(max_error < 10**(-9))
 
 
 # Proper test functions
