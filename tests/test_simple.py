@@ -1,3 +1,4 @@
+import pytest
 import joey
 import torch
 import torch.nn as nn
@@ -29,7 +30,13 @@ class Net(nn.Module):
 
 
 # Helper functions
-def create_net():
+SEED = 282757891
+
+
+@pytest.fixture
+def net_arguments():
+    np.random.seed(SEED)
+
     layer1 = joey.MaxPooling(kernel_size=(2, 2),
                              input_size=(1, 2, 4, 4),
                              generate_code=False)
@@ -74,8 +81,8 @@ def compare(devito, pytorch):
 
 
 # Proper test functions
-def test_forward_pass():
-    net, pytorch_net, _ = create_net()
+def test_forward_pass(net_arguments):
+    net, pytorch_net, layers = net_arguments
     input_data = np.array([[[[1, 2, 3, 4],
                              [5, 6, 7, 8],
                              [9, 10, 11, 12],
@@ -92,8 +99,8 @@ def test_forward_pass():
     compare(outputs, nn.Softmax(dim=1)(pytorch_outputs))
 
 
-def test_backward_pass():
-    net, pytorch_net, layers = create_net()
+def test_backward_pass(net_arguments):
+    net, pytorch_net, layers = net_arguments
     input_data = np.array([[[[1, 2, 3, 4],
                              [5, 6, 7, 8],
                              [9, 10, 11, 12],
