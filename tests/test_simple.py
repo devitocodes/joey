@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 from joey.activation import ReLU
+from utils import compare
 
 
 # PyTorch class
@@ -65,19 +66,6 @@ def net_arguments():
         pytorch_net.fc.bias[:] = torch.from_numpy(layer3.bias.data)
 
     return (net, pytorch_net, layers)
-
-
-def compare(devito, pytorch):
-    pytorch = pytorch.detach().numpy()
-
-    if devito.shape != pytorch.shape:
-        pytorch = np.transpose(pytorch)
-
-    error = abs(devito - pytorch) / abs(pytorch)
-    max_error = np.nanmax(error)
-
-    if max_error != np.nan:
-        assert(max_error < 10**(-9))
 
 
 # Proper test functions
