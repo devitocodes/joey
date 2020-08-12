@@ -1,0 +1,8 @@
+FROM python:3
+WORKDIR /usr/src/app
+RUN pip install torch==1.6.0+cpu torchvision==0.7.0+cpu -f https://download.pytorch.org/whl/torch_stable.html
+COPY requirements_docker_cpu.txt joey/
+RUN pip install -r joey/requirements_docker_cpu.txt
+COPY . joey/
+RUN pip install -e joey
+WORKDIR /usr/src/app/joey
