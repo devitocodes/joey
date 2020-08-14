@@ -1,1 +1,3 @@
-git+https://github.com/devitocodes/devito.git
+devito
+torch
+torchvision
