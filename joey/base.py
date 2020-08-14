@@ -126,3 +126,7 @@ class Layer(ABC):
     @abstractmethod
     def equations(self, input_function=None) -> list:
         pass
+
+    @abstractmethod
+    def backprop_equations(self) -> list:
+        pass

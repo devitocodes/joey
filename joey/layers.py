@@ -156,6 +156,9 @@ class Conv(Layer):
 
         return eqs
 
+    def backprop_equations(self):
+        pass
+
 
 class Pooling(Layer):
     def __init__(self, kernel_size, input_size,
@@ -267,6 +270,10 @@ class Pooling(Layer):
     def equations(self, input_function=None):
         pass
 
+    @abstractmethod
+    def backprop_equations(self):
+        pass
+
 
 class MaxPooling(Pooling):
     def __init__(self, *args, **kwargs):
@@ -289,6 +296,9 @@ class MaxPooling(Pooling):
             rhs = self._activation(rhs)
 
         return [Eq(self._R[a, b, c, d], rhs)]
+
+    def backprop_equations(self):
+        pass
 
 
 class FullyConnected(Layer):
@@ -387,6 +397,9 @@ class FullyConnected(Layer):
 
         return eqs
 
+    def backprop_equations(self):
+        pass
+
 
 class FullyConnectedSoftmax(FullyConnected):
     def __init__(self, weight_size, input_size, name_allocator_func=alloc,
@@ -474,3 +487,6 @@ class Flat(Layer):
 
         return [Eq(self._R[b * height * width + c * height + d, a],
                    input_function[a, b, c, d]) for a in range(batch_size)]
+
+    def backprop_equations(self):
+        pass
