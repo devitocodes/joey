@@ -24,9 +24,6 @@ Unlike other machine learning frameworks, Joey generates and compiles an optimiz
 Other activation functions can be implemented by extending the `Activation` abstract class.
 
 ## Installation
-### PyPI
-Joey is not available on PyPI yet.
-
 ### Docker
 1. Clone the repository: `git clone https://github.com/devitocodes/joey`
 2. Change your working directory to where you have cloned the repository.
@@ -41,6 +38,9 @@ Joey is not available on PyPI yet.
 3. Install Joey in editable mode: `pip install -e <path to where you have cloned the repository>`
 
 Done! You can now use Joey in your environment. If you want to make changes to the Joey code, you can do so in the directory where you have cloned the repository.
+
+### PyPI
+Joey is not available on PyPI yet.
 
 ## How to use
 The documentation is currently under construction. In the meantime, you can have a look at examples in `examples`.
