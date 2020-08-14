@@ -34,15 +34,11 @@ Joey is not available on PyPI yet.
 4. Done! If you want to start a Python interpreter with Joey, run `docker run -i -t devitocodes/joey:latest python`.
 
 ### Manually (recommended for contributors)
-Firstly, make sure the following dependencies are installed in either your system or your Python/conda virtual environment:
-* Devito
-* PyTorch
-* NumPy (included in Devito)
-* SymPy (included in Devito)
+*Please note that this method installs PyTorch with CUDA by default. If you want only a CPU version of PyTorch, you should install it by yourself beforehand.*
 
-Once this is done, follow these steps:
-1. Clone the repository: `git clone https://github.com/devitocodes/joey`
-2. Install Joey in editable mode: `pip install -e <path to where you have cloned the repository>`
+1. Make sure you are in the environment which you want to install Joey in (e.g. a Python/conda virtual environment).
+2. Clone the repository: `git clone https://github.com/devitocodes/joey`
+3. Install Joey in editable mode: `pip install -e <path to where you have cloned the repository>`
 
 Done! You can now use Joey in your environment. If you want to make changes to the Joey code, you can do so in the directory where you have cloned the repository.
 
