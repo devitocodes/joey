@@ -8,6 +8,9 @@ import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
 from utils import compare
+from devito import logger
+
+logger.set_log_noperf()
 
 
 # PyTorch class
