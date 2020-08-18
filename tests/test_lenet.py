@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
-from utils import compare
+from utils import compare, get_run_count
 from devito import logger
 
 logger.set_log_noperf()
@@ -148,10 +148,11 @@ def test_forward_pass(net_arguments, mnist):
 
     images = images.double()
 
-    outputs = net.forward(images.numpy())
-    pytorch_outputs = pytorch_net(images)
+    for i in range(get_run_count()):
+        outputs = net.forward(images.numpy())
+        pytorch_outputs = pytorch_net(images)
 
-    compare(outputs, nn.Softmax(dim=1)(pytorch_outputs))
+        compare(outputs, nn.Softmax(dim=1)(pytorch_outputs))
 
 
 def test_backward_pass(net_arguments, mnist):
@@ -174,29 +175,30 @@ def test_backward_pass(net_arguments, mnist):
 
     images = images.double()
 
-    net.forward(images.numpy())
-    net.backward(loss_grad)
+    for i in range(get_run_count()):
+        net.forward(images.numpy())
+        net.backward(loss_grad)
 
-    criterion = nn.CrossEntropyLoss()
+        criterion = nn.CrossEntropyLoss()
 
-    pytorch_net.zero_grad()
-    outputs = pytorch_net(images)
-    loss = criterion(outputs, labels)
-    loss.backward()
+        pytorch_net.zero_grad()
+        outputs = pytorch_net(images)
+        loss = criterion(outputs, labels)
+        loss.backward()
 
-    pytorch_layers = [pytorch_net.conv1, pytorch_net.conv2,
-                      pytorch_net.fc1, pytorch_net.fc2, pytorch_net.fc3]
-    devito_layers = [layers[0], layers[2], layers[5], layers[6], layers[7]]
+        pytorch_layers = [pytorch_net.conv1, pytorch_net.conv2,
+                          pytorch_net.fc1, pytorch_net.fc2, pytorch_net.fc3]
+        devito_layers = [layers[0], layers[2], layers[5], layers[6], layers[7]]
 
-    for i in range(len(pytorch_layers)):
-        pytorch_layer = pytorch_layers[i]
-        devito_layer = devito_layers[i]
+        for j in range(len(pytorch_layers)):
+            pytorch_layer = pytorch_layers[j]
+            devito_layer = devito_layers[j]
 
-        compare(devito_layer.kernel_gradients.data,
-                pytorch_layer.weight.grad)
+            compare(devito_layer.kernel_gradients.data,
+                    pytorch_layer.weight.grad)
 
-        compare(devito_layer.bias_gradients.data,
-                pytorch_layer.bias.grad)
+            compare(devito_layer.bias_gradients.data,
+                    pytorch_layer.bias.grad)
 
 
 def test_training_sgd(net_arguments, mnist):
@@ -244,9 +246,9 @@ def test_training_sgd(net_arguments, mnist):
         pytorch_loss.backward()
         pytorch_optimizer.step()
 
-        for i in range(len(pytorch_layers)):
-            pytorch_layer = pytorch_layers[i]
-            devito_layer = devito_layers[i]
+        for j in range(len(pytorch_layers)):
+            pytorch_layer = pytorch_layers[j]
+            devito_layer = devito_layers[j]
 
             compare(devito_layer.kernel.data, pytorch_layer.weight)
             compare(devito_layer.bias.data, pytorch_layer.bias)
