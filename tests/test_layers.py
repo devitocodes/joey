@@ -1,7 +1,9 @@
 import joey
 import numpy as np
 from joey.activation import ReLU
+from devito import logger
 
+logger.set_log_noperf()
 
 def test_conv():
     layer = joey.Conv(kernel_size=(2, 2, 2), input_size=(2, 2, 3, 3))

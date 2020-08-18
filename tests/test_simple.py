@@ -6,6 +6,9 @@ import torch.nn.functional as F
 import numpy as np
 from joey.activation import ReLU
 from utils import compare
+from devito import logger
+
+logger.set_log_noperf()
 
 
 # PyTorch class
