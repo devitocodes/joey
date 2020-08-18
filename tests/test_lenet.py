@@ -211,6 +211,10 @@ def test_training_sgd(net_arguments, mnist):
 
     criterion = nn.CrossEntropyLoss()
 
+    pytorch_layers = [pytorch_net.conv1, pytorch_net.conv2,
+                      pytorch_net.fc1, pytorch_net.fc2, pytorch_net.fc3]
+    devito_layers = [layers[0], layers[2], layers[5], layers[6], layers[7]]
+
     for i, data in enumerate(mnist_train, 0):
         images, labels = data
 
@@ -240,16 +244,12 @@ def test_training_sgd(net_arguments, mnist):
         pytorch_loss.backward()
         pytorch_optimizer.step()
 
+        for i in range(len(pytorch_layers)):
+            pytorch_layer = pytorch_layers[i]
+            devito_layer = devito_layers[i]
+
+            compare(devito_layer.kernel.data, pytorch_layer.weight)
+            compare(devito_layer.bias.data, pytorch_layer.bias)
+
         if i == iterations - 1:
             break
-
-    pytorch_layers = [pytorch_net.conv1, pytorch_net.conv2,
-                      pytorch_net.fc1, pytorch_net.fc2, pytorch_net.fc3]
-    devito_layers = [layers[0], layers[2], layers[5], layers[6], layers[7]]
-
-    for i in range(len(pytorch_layers)):
-        pytorch_layer = pytorch_layers[i]
-        devito_layer = devito_layers[i]
-
-        compare(devito_layer.kernel.data, pytorch_layer.weight)
-        compare(devito_layer.bias.data, pytorch_layer.bias)
