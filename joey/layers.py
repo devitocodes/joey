@@ -135,18 +135,15 @@ class Conv(Layer):
 
         return super().execute()
 
-    def equations(self, input_function=None):
-        if input_function is None:
-            input_function = self._I
-
+    def equations(self):
         a, b, c, d = self._R.dimensions
         _, _, kernel_height, kernel_width = self._kernel_size
-        batch_size, channels, _, _ = input_function.shape
+        batch_size, channels, _, _ = self._I.shape
         e, f, g, h = self._K.dimensions
 
         rhs = sum([self._K[e, f, x, y] *
-                   input_function[a, f, self._stride[0] * c + x,
-                                  self._stride[1] * d + y]
+                   self._I[a, f, self._stride[0] * c + x,
+                           self._stride[1] * d + y]
                    for x in range(kernel_height)
                    for y in range(kernel_width)])
 
@@ -202,9 +199,9 @@ class Conv(Layer):
                                                kernel_dims[2], kernel_dims[3]],
                         layer.result_gradients[kernel_dims[0], dims[1],
                                                dims[2]] *
-                        next_layer.result[batch_constant, kernel_dims[1],
-                                          kernel_dims[2] + dims[1],
-                                          kernel_dims[3] + dims[2]]),
+                        layer.input[batch_constant, kernel_dims[1],
+                                    kernel_dims[2] + dims[1],
+                                    kernel_dims[3] + dims[2]]),
                     Eq(layer.kernel_gradients,
                        layer.kernel_gradients / (batch_constant + 1)),
                     Eq(next_layer.result_gradients, 0),
@@ -346,7 +343,7 @@ class Pooling(Layer):
         return super().execute()
 
     @abstractmethod
-    def equations(self, input_function=None):
+    def equations(self):
         pass
 
     @abstractmethod
@@ -359,16 +356,13 @@ class MaxPooling(Pooling):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def equations(self, input_function=None):
-        if input_function is None:
-            input_function = self._I
-
+    def equations(self):
         a, b, c, d = self._R.dimensions
         kernel_height, kernel_width = self._kernel_size
 
-        rhs = Max(*[input_function[a, b,
-                                   self._stride[0] * c + i,
-                                   self._stride[1] * d + j]
+        rhs = Max(*[self._I[a, b,
+                            self._stride[0] * c + i,
+                            self._stride[1] * d + j]
                     for i in range(kernel_height)
                     for j in range(kernel_width)])
 
@@ -403,13 +397,13 @@ class MaxPooling(Pooling):
                                                               dims[0],
                                                               dims[1],
                                                               dims[2]], 1),
-                                                 ~Ne(next_layer
-                                                     .result[batch_constant,
-                                                             dims[0],
-                                                             stride_rows *
-                                                             dims[1] + a,
-                                                             stride_cols *
-                                                             dims[2] + b],
+                                                 ~Ne(layer
+                                                     .input[batch_constant,
+                                                            dims[0],
+                                                            stride_rows *
+                                                            dims[1] + a,
+                                                            stride_cols *
+                                                            dims[2] + b],
                                                      layer.result[batch_constant,
                                                                   dims[0],
                                                                   dims[1],
@@ -505,16 +499,13 @@ class FullyConnected(Layer):
 
         return super().execute()
 
-    def equations(self, input_function=None):
-        if input_function is None:
-            input_function = self._I
-
+    def equations(self):
         a, b, c = self._dimensions
 
         if self._input_is_vector:
-            eqs = [Inc(self._R[a], self._K[a, b] * input_function[b])]
+            eqs = [Inc(self._R[a], self._K[a, b] * self._I[b])]
         else:
-            eqs = [Inc(self._R[a, c], self._K[a, b] * input_function[b, c])]
+            eqs = [Inc(self._R[a, c], self._K[a, b] * self._I[b, c])]
 
         if self._activation is not None:
             eqs.append(Eq(self._R, self._activation(self._bias[a] + self._R)))
@@ -541,8 +532,8 @@ class FullyConnected(Layer):
                     Eq(layer.kernel_gradients,
                        layer.kernel_gradients * batch_constant),
                     Inc(layer.kernel_gradients[kernel_dims[0], kernel_dims[1]],
-                        next_layer.result[kernel_dims[1],
-                                          batch_constant] *
+                        layer.input[kernel_dims[1],
+                                    batch_constant] *
                         layer.result_gradients[kernel_dims[0]]),
                     Eq(layer.kernel_gradients,
                        layer.kernel_gradients / (batch_constant + 1))]
@@ -563,7 +554,7 @@ class FullyConnected(Layer):
              Eq(layer.kernel_gradients,
                 layer.kernel_gradients * batch_constant),
              Inc(layer.kernel_gradients[kernel_dims[0], kernel_dims[1]],
-                 next_layer.result[kernel_dims[1], batch_constant] *
+                 layer.input[kernel_dims[1], batch_constant] *
                  layer.result_gradients[kernel_dims[0]]),
              Eq(layer.kernel_gradients,
                 layer.kernel_gradients / (batch_constant + 1))]
@@ -579,24 +570,21 @@ class FullyConnectedSoftmax(FullyConnected):
         super().__init__(weight_size, input_size, name_allocator_func,
                          dim_allocator_func, activation.Dummy(), generate_code)
 
-    def equations(self, input_function=None):
-        if input_function is None:
-            input_function = self._I
-
+    def equations(self):
         if self._input_is_vector:
-            return self._equations_vector(input_function)
+            return self._equations_vector()
         else:
-            return self._equations_matrix(input_function)
+            return self._equations_matrix()
 
-    def _equations_vector(self, input_function):
+    def _equations_vector(self):
         C = Constant(name=self._name_allocator())
         a, b, c = self._dimensions
-        return [Inc(self._T[a], self._K[a, b] * input_function[b]),
+        return [Inc(self._T[a], self._K[a, b] * self._I[b]),
                 Inc(self._T, self._bias),
                 Eq(C, sum([exp(self._T[i]) for i in range(self._R.shape[0])])),
                 Eq(self._R, exp(self._T) / C)]
 
-    def _equations_matrix(self, input_function):
+    def _equations_matrix(self):
         gridC = Grid(shape=self._R.shape[1], dimensions=self._dim_allocator(1))
         C = Function(name=self._name_allocator(), grid=gridC, space_order=0,
                      dtype=np.float64)
@@ -605,7 +593,7 @@ class FullyConnectedSoftmax(FullyConnected):
         x = C.dimensions[0]
         a, b, c = self._dimensions
 
-        return [Inc(self._T[a, c], self._K[a, b] * input_function[b, c]),
+        return [Inc(self._T[a, c], self._K[a, b] * self._I[b, c]),
                 Inc(self._T[a, c], self._bias[a]),
                 Eq(M[x], Max(*[self._T[i, x]
                                for i in range(self._R.shape[0])])),
@@ -648,15 +636,12 @@ class Flat(Layer):
         self._I.data[:] = input_data
         return super().execute()
 
-    def equations(self, input_function=None):
-        if input_function is None:
-            input_function = self._I
-
-        _, b, c, d = input_function.dimensions
-        batch_size, channels, height, width = input_function.shape
+    def equations(self):
+        _, b, c, d = self._I.dimensions
+        batch_size, channels, height, width = self._I.shape
 
         return [Eq(self._R[b * height * width + c * height + d, a],
-                   input_function[a, b, c, d]) for a in range(batch_size)]
+                   self._I[a, b, c, d]) for a in range(batch_size)]
 
     def backprop_equations(self, prev_layer, next_layer, batch_constant,
                            backward_arg_dict=None):
