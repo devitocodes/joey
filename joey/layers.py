@@ -141,20 +141,18 @@ class Conv(Layer):
         batch_size, channels, _, _ = self._I.shape
         e, f, g, h = self._K.dimensions
 
-        rhs = sum([self._K[e, f, x, y] *
-                   self._I[a, f, self._stride[0] * c + x,
-                           self._stride[1] * d + y]
-                   for x in range(kernel_height)
-                   for y in range(kernel_width)])
+        rhs = self._K[b, f, g, h] * \
+            self._I[a, f, self._stride[0] * c + g,
+                    self._stride[1] * d + h]
 
-        eqs = [Inc(self._R[a, e, c, d], rhs)]
+        eqs = [Inc(self._R[a, b, c, d], rhs)]
 
         if self._activation is not None:
-            eqs.append(Eq(self._R[a, e, c, d],
-                          self._activation(self._R[a, e, c, d] +
-                                           self._bias[e])))
+            eqs.append(Eq(self._R[a, b, c, d],
+                          self._activation(self._R[a, b, c, d] +
+                                           self._bias[b])))
         else:
-            eqs.append(Inc(self._R[a, e, c, d], self._bias[e]))
+            eqs.append(Inc(self._R[a, b, c, d], self._bias[b]))
 
         return eqs
 
@@ -585,19 +583,19 @@ class FullyConnectedSoftmax(FullyConnected):
                 Eq(self._R, exp(self._T) / C)]
 
     def _equations_matrix(self):
-        gridC = Grid(shape=self._R.shape[1], dimensions=self._dim_allocator(1))
+        a, b, c = self._dimensions
+
+        gridC = Grid(shape=self._R.shape[1], dimensions=(c,))
         C = Function(name=self._name_allocator(), grid=gridC, space_order=0,
                      dtype=np.float64)
         M = Function(name=self._name_allocator(), grid=gridC, space_order=0,
                      dtype=np.float64)
-        x = C.dimensions[0]
-        a, b, c = self._dimensions
 
         return [Inc(self._T[a, c], self._K[a, b] * self._I[b, c]),
                 Inc(self._T[a, c], self._bias[a]),
-                Eq(M[x], Max(*[self._T[i, x]
+                Eq(M[c], Max(*[self._T[i, c]
                                for i in range(self._R.shape[0])])),
-                Eq(C[x], sum([exp(self._T[i, x] - M[x])
+                Eq(C[c], sum([exp(self._T[i, c] - M[c])
                               for i in range(self._R.shape[0])])),
                 Eq(self._R[a, b], exp(self._T[a, b] - M[b]) / C[b]),
                 Eq(self._T, 0)]
