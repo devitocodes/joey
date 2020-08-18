@@ -124,7 +124,7 @@ class Layer(ABC):
         return self._R.data
 
     @abstractmethod
-    def equations(self, input_function=None) -> list:
+    def equations(self) -> list:
         pass
 
     @abstractmethod
