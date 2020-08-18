@@ -45,7 +45,11 @@ class Net:
         input_function = None
 
         for layer in self._layers:
-            eqs += layer.equations(input_function=input_function)
+            if input_function is not None:
+                dims = input_function.dimensions
+                eqs.append(Eq(layer.input[dims], input_function[dims]))
+
+            eqs += layer.equations()
             input_function = layer.result
 
         return eqs
