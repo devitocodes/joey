@@ -227,11 +227,15 @@ def test_training_sgd(net_arguments, mnist):
 
         images = images.double()
 
-        net.forward(images.numpy())
-        net.backward(loss_grad, optimizer)
+        outputs = net.forward(images.numpy())
 
         pytorch_optimizer.zero_grad()
         pytorch_outputs = pytorch_net(images)
+
+        compare(outputs, nn.Softmax(dim=1)(pytorch_outputs))
+
+        net.backward(loss_grad, optimizer)
+
         pytorch_loss = criterion(pytorch_outputs, labels)
         pytorch_loss.backward()
         pytorch_optimizer.step()
