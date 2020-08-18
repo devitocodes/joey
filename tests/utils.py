@@ -11,4 +11,4 @@ def compare(devito, pytorch):
     max_error = np.nanmax(error)
 
     if max_error != np.nan:
-        assert(max_error < 10**(-9))
+        assert(max_error < 1e-9)
