@@ -190,7 +190,7 @@ def test_backward_pass(net_arguments, mnist):
                           pytorch_net.fc1, pytorch_net.fc2, pytorch_net.fc3]
         devito_layers = [layers[0], layers[2], layers[5], layers[6], layers[7]]
 
-        for j in range(len(pytorch_layers)):
+        for j in range(len(pytorch_layers) - 1, -1, -1):
             pytorch_layer = pytorch_layers[j]
             devito_layer = devito_layers[j]
 
@@ -246,7 +246,7 @@ def test_training_sgd(net_arguments, mnist):
         pytorch_loss.backward()
         pytorch_optimizer.step()
 
-        for j in range(len(pytorch_layers)):
+        for j in range(len(pytorch_layers) - 1, -1, -1):
             pytorch_layer = pytorch_layers[j]
             devito_layer = devito_layers[j]
 
