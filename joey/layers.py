@@ -413,10 +413,10 @@ class MaxPooling(Pooling):
 
         return [Eq(next_layer.result_gradients, 0),
                 Eq(processed, 0),
-                Eq(next_layer.result_gradients[dims[0], stride_rows * dims[1] +
-                                               a, stride_cols * dims[2] + b],
-                   layer.result_gradients[dims[0], dims[1], dims[2]],
-                   implicit_dims=cd1),
+                Inc(next_layer.result_gradients[dims[0], stride_rows * dims[1] +
+                                                a, stride_cols * dims[2] + b],
+                    layer.result_gradients[dims[0], dims[1], dims[2]],
+                    implicit_dims=cd1),
                 Eq(processed[batch_constant, dims[0], dims[1], dims[2]],
                    1, implicit_dims=(a, b, cd1))] + \
             next_layer.activation.backprop_eqs(next_layer,
