@@ -16,13 +16,15 @@ class Net(nn.Module):
     def __init__(self):
         super(Net, self).__init__()
         self.conv = nn.Conv2d(2, 2, 2)
-        self.fc = nn.Linear(8, 3)
+        self.fc1 = nn.Linear(8, 5)
+        self.fc2 = nn.Linear(5, 3)
 
     def forward(self, x):
-        x = F.max_pool2d(x, 2, stride=(1, 1))
         x = F.relu(self.conv(x))
+        x = F.max_pool2d(x, 2, stride=(1, 1))
         x = x.view(-1, self.num_flat_features(x))
-        x = self.fc(x)
+        x = F.relu(self.fc1(x))
+        x = self.fc2(x)
         return x
 
     def num_flat_features(self, x):
@@ -41,20 +43,24 @@ SEED = 282757891
 def net_arguments():
     np.random.seed(SEED)
 
-    layer1 = joey.MaxPooling(kernel_size=(2, 2),
-                             input_size=(1, 2, 4, 4),
-                             generate_code=False)
-    layer2 = joey.Conv(kernel_size=(2, 2, 2),
-                       input_size=(1, 2, 3, 3),
+    layer1 = joey.Conv(kernel_size=(2, 2, 2),
+                       input_size=(2, 2, 4, 4),
                        activation=ReLU(),
                        generate_code=False)
-    layer_flat = joey.Flat(input_size=(1, 2, 2, 2),
+    layer2 = joey.MaxPooling(kernel_size=(2, 2),
+                             input_size=(2, 2, 3, 3),
+                             generate_code=False)
+    layer_flat = joey.Flat(input_size=(2, 2, 2, 2),
                            generate_code=False)
-    layer3 = joey.FullyConnectedSoftmax(weight_size=(3, 8),
-                                        input_size=(8, 1),
+    layer3 = joey.FullyConnected(weight_size=(5, 8),
+                                 input_size=(8, 2),
+                                 activation=ReLU(),
+                                 generate_code=False)
+    layer4 = joey.FullyConnectedSoftmax(weight_size=(3, 5),
+                                        input_size=(5, 2),
                                         generate_code=False)
 
-    layers = [layer1, layer2, layer_flat, layer3]
+    layers = [layer1, layer2, layer_flat, layer3, layer4]
 
     net = joey.Net(layers)
 
@@ -62,11 +68,14 @@ def net_arguments():
     pytorch_net.double()
 
     with torch.no_grad():
-        pytorch_net.conv.weight[:] = torch.from_numpy(layer2.kernel.data)
-        pytorch_net.conv.bias[:] = torch.from_numpy(layer2.bias.data)
+        pytorch_net.conv.weight[:] = torch.from_numpy(layer1.kernel.data)
+        pytorch_net.conv.bias[:] = torch.from_numpy(layer1.bias.data)
 
-        pytorch_net.fc.weight[:] = torch.from_numpy(layer3.kernel.data)
-        pytorch_net.fc.bias[:] = torch.from_numpy(layer3.bias.data)
+        pytorch_net.fc1.weight[:] = torch.from_numpy(layer3.kernel.data)
+        pytorch_net.fc1.bias[:] = torch.from_numpy(layer3.bias.data)
+
+        pytorch_net.fc2.weight[:] = torch.from_numpy(layer4.kernel.data)
+        pytorch_net.fc2.bias[:] = torch.from_numpy(layer4.bias.data)
 
     return (net, pytorch_net, layers)
 
@@ -81,7 +90,15 @@ def test_forward_pass(net_arguments):
                             [[-1, -2, 0, 1],
                              [-2, -3, 1, 2],
                              [3, 4, 2, -1],
-                             [-2, -3, -4, 9]]]],
+                             [-2, -3, -4, 9]]],
+                           [[[5, 6, 7, 8],
+                             [9, 10, 11, 12],
+                             [13, 14, 15, 16],
+                             [17, 18, 19, 20]],
+                            [[1, 2, 0, -1],
+                             [2, 3, -1, -2],
+                             [-3, -4, -2, 1],
+                             [2, 3, 4, -9]]]],
                           dtype=np.float64)
 
     for i in range(get_run_count()):
@@ -100,16 +117,24 @@ def test_backward_pass(net_arguments):
                             [[-1, -2, 0, 1],
                              [-2, -3, 1, 2],
                              [3, 4, 2, -1],
-                             [-2, -3, -4, 9]]]],
+                             [-2, -3, -4, 9]]],
+                           [[[5, 6, 7, 8],
+                             [9, 10, 11, 12],
+                             [13, 14, 15, 16],
+                             [17, 18, 19, 20]],
+                            [[1, 2, 0, -1],
+                             [2, 3, -1, -2],
+                             [-3, -4, -2, 1],
+                             [2, 3, 4, -9]]]],
                           dtype=np.float64)
-    expected = np.array([2])
+    expected = np.array([2, 1])
 
     def loss_grad(layer, b):
         gradients = []
 
         for i in range(3):
-            result = layer.result.data[i]
-            if i == expected[0]:
+            result = layer.result.data[i, b]
+            if i == expected[b]:
                 result -= 1
             gradients.append(result)
 
@@ -126,10 +151,10 @@ def test_backward_pass(net_arguments):
         loss = criterion(outputs, torch.from_numpy(expected))
         loss.backward()
 
-        pytorch_layers = [pytorch_net.conv, pytorch_net.fc]
-        devito_layers = [layers[1], layers[3]]
+        pytorch_layers = [pytorch_net.conv, pytorch_net.fc1, pytorch_net.fc2]
+        devito_layers = [layers[0], layers[3], layers[4]]
 
-        for j in range(len(pytorch_layers)):
+        for j in range(len(pytorch_layers) - 1, -1, -1):
             pytorch_layer = pytorch_layers[j]
             devito_layer = devito_layers[j]
 
