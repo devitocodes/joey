@@ -154,10 +154,9 @@ class Conv(Layer):
         else:
             eqs.append(Inc(self._R[a, b, c, d], self._bias[b]))
 
-        return eqs
+        return (eqs, [])
 
-    def backprop_equations(self, prev_layer, next_layer, batch_constant,
-                           backward_arg_dict=None):
+    def backprop_equations(self, prev_layer, next_layer, batch_constant):
         layer = self
 
         kernel_dims = layer.kernel_gradients.dimensions
@@ -231,7 +230,7 @@ class Conv(Layer):
                     Eq(layer.kernel_gradients,
                        layer.kernel_gradients / (batch_constant + 1))]
 
-        return eqs
+        return (eqs, [])
 
 
 class Pooling(Layer):
@@ -345,8 +344,7 @@ class Pooling(Layer):
         pass
 
     @abstractmethod
-    def backprop_equations(self, prev_layer, next_layer, batch_constant,
-                           backward_arg_dict):
+    def backprop_equations(self, prev_layer, next_layer, batch_constant):
         pass
 
 
@@ -367,18 +365,17 @@ class MaxPooling(Pooling):
         if self._activation is not None:
             rhs = self._activation(rhs)
 
-        return [Eq(self._R[a, b, c, d], rhs)]
+        return ([Eq(self._R[a, b, c, d], rhs)], [])
 
-    def backprop_equations(self, prev_layer, next_layer, batch_constant,
-                           backward_arg_dict):
+    def backprop_equations(self, prev_layer, next_layer, batch_constant):
         if next_layer is None:
-            return []
+            return ([], [])
 
         layer = self
 
         a, b = dim_alloc(2)
-        backward_arg_dict[a.name + '_M'] = layer.kernel_size[0] - 1
-        backward_arg_dict[b.name + '_M'] = layer.kernel_size[1] - 1
+        args = [(a.name + '_M', layer.kernel_size[0] - 1),
+                (b.name + '_M', layer.kernel_size[1] - 1)]
         processed = Function(name=alloc(), grid=layer.result.grid,
                              space_order=0, dtype=np.float64)
 
@@ -407,16 +404,17 @@ class MaxPooling(Pooling):
                                                                   dims[1],
                                                                   dims[2]])))
 
-        return [Eq(next_layer.result_gradients, 0),
-                Eq(processed, 0),
-                Eq(next_layer.result_gradients[dims[0], stride_rows * dims[1] +
-                                               a, stride_cols * dims[2] + b],
-                   layer.result_gradients[dims[0], dims[1], dims[2]],
-                   implicit_dims=cd1),
-                Eq(processed[batch_constant, dims[0], dims[1], dims[2]],
-                   1, implicit_dims=(a, b, cd1))] + \
-            next_layer.activation.backprop_eqs(next_layer,
-                                               batch_constant)
+        return ([Eq(next_layer.result_gradients, 0),
+                 Eq(processed, 0),
+                 Eq(next_layer.result_gradients[dims[0],
+                                                stride_rows * dims[1] +
+                                                a, stride_cols * dims[2] + b],
+                    layer.result_gradients[dims[0], dims[1], dims[2]],
+                    implicit_dims=cd1),
+                 Eq(processed[batch_constant, dims[0], dims[1], dims[2]],
+                    1, implicit_dims=(a, b, cd1))] +
+                next_layer.activation.backprop_eqs(next_layer,
+                                                   batch_constant), args)
 
 
 class FullyConnected(Layer):
@@ -510,10 +508,9 @@ class FullyConnected(Layer):
         else:
             eqs.append(Inc(self._R[a, c], self._bias[a]))
 
-        return eqs
+        return (eqs, [])
 
-    def backprop_equations(self, prev_layer, next_layer, batch_constant,
-                           backward_arg_dict=None):
+    def backprop_equations(self, prev_layer, next_layer, batch_constant):
         layer = self
 
         dims = layer.result_gradients.dimensions
@@ -521,41 +518,42 @@ class FullyConnected(Layer):
         kernel_dims = layer.kernel_gradients.dimensions
 
         if prev_layer is None:
-            return [Eq(layer.bias_gradients,
-                       layer.bias_gradients * batch_constant),
-                    Inc(layer.bias_gradients[bias_dims[0]],
-                    layer.result_gradients[bias_dims[0]]),
-                    Eq(layer.bias_gradients,
-                       layer.bias_gradients / (batch_constant + 1)),
-                    Eq(layer.kernel_gradients,
-                       layer.kernel_gradients * batch_constant),
-                    Inc(layer.kernel_gradients[kernel_dims[0], kernel_dims[1]],
-                        layer.input[kernel_dims[1],
-                                    batch_constant] *
-                        layer.result_gradients[kernel_dims[0]]),
-                    Eq(layer.kernel_gradients,
-                       layer.kernel_gradients / (batch_constant + 1))]
+            return ([Eq(layer.bias_gradients,
+                        layer.bias_gradients * batch_constant),
+                     Inc(layer.bias_gradients[bias_dims[0]],
+                         layer.result_gradients[bias_dims[0]]),
+                     Eq(layer.bias_gradients,
+                        layer.bias_gradients / (batch_constant + 1)),
+                     Eq(layer.kernel_gradients,
+                        layer.kernel_gradients * batch_constant),
+                     Inc(layer.kernel_gradients[kernel_dims[0],
+                                                kernel_dims[1]],
+                         layer.input[kernel_dims[1],
+                                     batch_constant] *
+                         layer.result_gradients[kernel_dims[0]]),
+                     Eq(layer.kernel_gradients,
+                        layer.kernel_gradients / (batch_constant + 1))], [])
 
         prev_dims = prev_layer.result_gradients.dimensions
 
-        return [Eq(layer.result_gradients, 0),
-                Inc(layer.result_gradients[dims[0]],
-                    prev_layer.kernel[prev_dims[0], dims[0]] *
-                    prev_layer.result_gradients[prev_dims[0]])] + \
-            layer.activation.backprop_eqs(layer, batch_constant) + \
-            [Eq(layer.bias_gradients,
-                layer.bias_gradients * batch_constant),
-             Inc(layer.bias_gradients[bias_dims[0]],
-                 layer.result_gradients[bias_dims[0]]),
-             Eq(layer.bias_gradients,
-                layer.bias_gradients / (batch_constant + 1)),
-             Eq(layer.kernel_gradients,
-                layer.kernel_gradients * batch_constant),
-             Inc(layer.kernel_gradients[kernel_dims[0], kernel_dims[1]],
-                 layer.input[kernel_dims[1], batch_constant] *
-                 layer.result_gradients[kernel_dims[0]]),
-             Eq(layer.kernel_gradients,
-                layer.kernel_gradients / (batch_constant + 1))]
+        return ([Eq(layer.result_gradients, 0),
+                 Inc(layer.result_gradients[dims[0]],
+                     prev_layer.kernel[prev_dims[0], dims[0]] *
+                     prev_layer.result_gradients[prev_dims[0]])] +
+                layer.activation.backprop_eqs(layer, batch_constant) +
+                [Eq(layer.bias_gradients,
+                    layer.bias_gradients * batch_constant),
+                 Inc(layer.bias_gradients[bias_dims[0]],
+                     layer.result_gradients[bias_dims[0]]),
+                 Eq(layer.bias_gradients,
+                    layer.bias_gradients / (batch_constant + 1)),
+                 Eq(layer.kernel_gradients,
+                    layer.kernel_gradients * batch_constant),
+                 Inc(layer.kernel_gradients[kernel_dims[0], kernel_dims[1]],
+                     layer.input[kernel_dims[1], batch_constant] *
+                     layer.result_gradients[kernel_dims[0]]),
+                 Eq(layer.kernel_gradients,
+                    layer.kernel_gradients / (batch_constant + 1))], [])
 
 
 class FullyConnectedSoftmax(FullyConnected):
@@ -570,9 +568,9 @@ class FullyConnectedSoftmax(FullyConnected):
 
     def equations(self):
         if self._input_is_vector:
-            return self._equations_vector()
+            return (self._equations_vector(), [])
         else:
-            return self._equations_matrix()
+            return (self._equations_matrix(), [])
 
     def _equations_vector(self):
         C = Constant(name=self._name_allocator())
@@ -638,11 +636,10 @@ class Flat(Layer):
         _, b, c, d = self._I.dimensions
         batch_size, channels, height, width = self._I.shape
 
-        return [Eq(self._R[b * height * width + c * height + d, a],
-                   self._I[a, b, c, d]) for a in range(batch_size)]
+        return ([Eq(self._R[b * height * width + c * height + d, a],
+                    self._I[a, b, c, d]) for a in range(batch_size)], [])
 
-    def backprop_equations(self, prev_layer, next_layer, batch_constant,
-                           backward_arg_dict=None):
+    def backprop_equations(self, prev_layer, next_layer, batch_constant):
         layer = self
 
         prev_kernel_dims = prev_layer.kernel_gradients.dimensions
@@ -651,13 +648,14 @@ class Flat(Layer):
         _, height, width = next_layer.result_gradients.shape
         next_dims = next_layer.result_gradients.dimensions
 
-        return [Eq(layer.result_gradients, 0),
-                Inc(layer.result_gradients[dims[0]],
-                    prev_layer.kernel[prev_kernel_dims[0], dims[0]] *
-                    prev_layer.result_gradients[prev_kernel_dims[0]]),
-                Eq(next_layer.result_gradients[next_dims[0], next_dims[1],
-                                               next_dims[2]],
-                   layer.result_gradients[next_dims[0] * height * width +
-                                          next_dims[1] * height +
-                                          next_dims[2]])] + \
-            next_layer.activation.backprop_eqs(next_layer, batch_constant)
+        return ([Eq(layer.result_gradients, 0),
+                 Inc(layer.result_gradients[dims[0]],
+                     prev_layer.kernel[prev_kernel_dims[0], dims[0]] *
+                     prev_layer.result_gradients[prev_kernel_dims[0]]),
+                 Eq(next_layer.result_gradients[next_dims[0], next_dims[1],
+                                                next_dims[2]],
+                    layer.result_gradients[next_dims[0] * height * width +
+                                           next_dims[1] * height +
+                                           next_dims[2]])] +
+                next_layer.activation.backprop_eqs(next_layer, batch_constant),
+                [])

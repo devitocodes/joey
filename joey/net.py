@@ -11,10 +11,17 @@ class Net:
     def __init__(self, layers: list):
         self._layers = layers
         self._batch_constant = Constant(name='batch', dtype=np.int32)
+        self._forward_arg_dict = {}
         self._backward_arg_dict = {}
 
-        eqs = self._gen_eqs()
-        backprop_eqs = self._gen_backprop_eqs()
+        eqs, args = self._gen_eqs()
+        backprop_eqs, backprop_args = self._gen_backprop_eqs()
+
+        for (key, value) in args:
+            self._forward_arg_dict[key] = value
+
+        for (key, value) in backprop_args:
+            self._backward_arg_dict[key] = value
 
         parameter_lists = list(map(ml.Layer.pytorch_parameters, self._layers))
         parameters = []
@@ -35,13 +42,16 @@ class Net:
     def _init_parameters(self):
         for layer in self._layers:
             if layer.kernel is not None:
-                layer.kernel.data[:] = np.random.rand(*layer.kernel.shape) - 0.5
+                layer.kernel.data[:] = \
+                    np.random.rand(*layer.kernel.shape) - 0.5
 
             if layer.bias is not None:
                 layer.bias.data[:] = np.random.rand(*layer.bias.shape) - 0.5
 
     def _gen_eqs(self):
         eqs = []
+        args = []
+
         input_function = None
 
         for layer in self._layers:
@@ -49,13 +59,17 @@ class Net:
                 dims = input_function.dimensions
                 eqs.append(Eq(layer.input[dims], input_function[dims]))
 
-            eqs += layer.equations()
+            layer_eqs, layer_args = layer.equations()
+
+            args += layer_args
+            eqs += layer_eqs
             input_function = layer.result
 
-        return eqs
+        return (eqs, args)
 
     def _gen_backprop_eqs(self):
         eqs = []
+        args = []
 
         for i in range(len(self._layers) - 1, -1, -1):
             if i < len(self._layers) - 1:
@@ -68,11 +82,14 @@ class Net:
             else:
                 next_layer = None
 
-            eqs += self._layers[i].backprop_equations(prev_layer, next_layer,
-                                                      self._batch_constant,
-                                                      self._backward_arg_dict)
+            layer_eqs, layer_args = \
+                self._layers[i].backprop_equations(prev_layer, next_layer,
+                                                   self._batch_constant)
 
-        return eqs
+            args += layer_args
+            eqs += layer_eqs
+
+        return (eqs, args)
 
     @property
     def pytorch_parameters(self):
@@ -83,7 +100,7 @@ class Net:
             layer.result.data[:] = 0
 
         self._layers[0].input.data[:] = input_data
-        self._forward_operator.apply()
+        self._forward_operator.apply(**self._forward_arg_dict)
         return self._layers[-1].result.data
 
     def backward(self, loss_gradient_func, pytorch_optimizer=None):
