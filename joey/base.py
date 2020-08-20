@@ -47,7 +47,9 @@ class Layer(ABC):
                                          dim_allocator_func)
 
         if generate_code:
-            self._op = Operator(self.equations())
+            eqs, args = self.equations()
+            self._arg_dict = dict(args)
+            self._op = Operator(eqs)
             self._op.cfunction
 
     @property
@@ -120,14 +122,14 @@ class Layer(ABC):
 
     @abstractmethod
     def execute(self, kernel_data=None, input_data=None, bias=None) -> array:
-        self._op.apply()
+        self._op.apply(**self._arg_dict)
         return self._R.data
 
     @abstractmethod
-    def equations(self) -> list:
+    def equations(self) -> (list, list):
         pass
 
     @abstractmethod
     def backprop_equations(self, prev_layer, next_layer,
-                           batch_constant, backward_arg_dict) -> list:
+                           batch_constant) -> (list, list):
         pass
