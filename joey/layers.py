@@ -3,9 +3,9 @@ from joey import Layer
 from joey import activation
 from joey import default_name_allocator as alloc
 from joey import default_dim_allocator as dim_alloc
-from devito import Grid, Function, Constant, Eq, Inc, Ne, \
+from devito import Grid, Function, Constant, Eq, Inc, \
     ConditionalDimension
-from sympy import exp, Max, And
+from sympy import exp, Max, And, Min, sign
 import numpy as np
 
 
@@ -350,71 +350,81 @@ class Pooling(Layer):
 
 class MaxPooling(Pooling):
     def __init__(self, *args, **kwargs):
+        self._indices = None
+        self._forward_tmp_constants = None
+        self._backward_tmp_constants = None
         super().__init__(*args, **kwargs)
 
     def equations(self):
+        if self._forward_tmp_constants is None:
+            self._forward_tmp_constants = \
+                [Constant(name=alloc(), dtype=np.float64)]
+
+        if self._indices is None:
+            self._indices = \
+                Function(name=alloc(),
+                         grid=self._R.grid,
+                         space_order=0,
+                         dtype=np.int32)
+
         a, b, c, d = self._R.dimensions
         kernel_height, kernel_width = self._kernel_size
+        i, j = dim_alloc(2)
 
-        rhs = Max(*[self._I[a, b,
-                            self._stride[0] * c + i,
-                            self._stride[1] * d + j]
-                    for i in range(kernel_height)
-                    for j in range(kernel_width)])
+        args = [(i.name + '_M', kernel_height - 1),
+                (j.name + '_M', kernel_width - 1)]
+
+        old = self._forward_tmp_constants[0]
+
+        cond1 = abs(sign(self._R[a, b, c, d] - old)) * kernel_width * \
+            kernel_height
+        cond2 = abs(sign(self._I[a, b, self._stride[0] * c + i,
+                                 self._stride[1] * d + j] -
+                         self._R[a, b, c, d])) * kernel_width * kernel_height
+
+        eqs = [Eq(self._indices, kernel_height * kernel_width),
+               Eq(self._R[a, b, c, d], self._I[a, b,
+                                               self._stride[0] * c,
+                                               self._stride[1] * d]),
+               Eq(old, self._R[a, b, c, d], implicit_dims=(i, j)),
+               Eq(self._R[a, b, c, d], Max(self._R[a, b, c, d],
+                                           self._I[a, b,
+                                                   self._stride[0] * c + i,
+                                                   self._stride[1] * d + j])),
+               Eq(self._indices[a, b, c, d],
+                  Min(self._indices[a, b, c, d] + cond1,
+                      i * kernel_width + j + cond2))]
 
         if self._activation is not None:
-            rhs = self._activation(rhs)
+            eqs.append(Eq(self._R, self._activation(self._R)))
 
-        return ([Eq(self._R[a, b, c, d], rhs)], [])
+        return (eqs, args)
 
     def backprop_equations(self, prev_layer, next_layer, batch_constant):
         if next_layer is None:
             return ([], [])
 
-        layer = self
+        if self._backward_tmp_constants is None:
+            self._backward_tmp_constants = \
+                [Constant(name=alloc(), dtype=np.int32),
+                 Constant(name=alloc(), dtype=np.int32)]
 
-        a, b = dim_alloc(2)
-        args = [(a.name + '_M', layer.kernel_size[0] - 1),
-                (b.name + '_M', layer.kernel_size[1] - 1)]
-        processed = Function(name=alloc(), grid=layer.result.grid,
-                             space_order=0, dtype=np.float64)
+        dims = self._R.dimensions
+        stride_rows, stride_cols = self.stride
 
-        dims = layer.result.dimensions
-
-        # The first dimension corresponding to a batch index must be
-        # discarded here.
-        dims = dims[1:]
-
-        stride_rows, stride_cols = layer.stride
-
-        cd1 = ConditionalDimension(name=alloc(), parent=b,
-                                   condition=And(Ne(processed[batch_constant,
-                                                              dims[0],
-                                                              dims[1],
-                                                              dims[2]], 1),
-                                                 ~Ne(layer
-                                                     .input[batch_constant,
-                                                            dims[0],
-                                                            stride_rows *
-                                                            dims[1] + a,
-                                                            stride_cols *
-                                                            dims[2] + b],
-                                                     layer.result[batch_constant,
-                                                                  dims[0],
-                                                                  dims[1],
-                                                                  dims[2]])))
+        index = self._indices[batch_constant, dims[1], dims[2], dims[3]]
+        a = self._backward_tmp_constants[0]
+        b = self._backward_tmp_constants[1]
 
         return ([Eq(next_layer.result_gradients, 0),
-                 Eq(processed, 0),
-                 Eq(next_layer.result_gradients[dims[0],
-                                                stride_rows * dims[1] +
-                                                a, stride_cols * dims[2] + b],
-                    layer.result_gradients[dims[0], dims[1], dims[2]],
-                    implicit_dims=cd1),
-                 Eq(processed[batch_constant, dims[0], dims[1], dims[2]],
-                    1, implicit_dims=(a, b, cd1))] +
+                 Eq(a, index // 2),
+                 Eq(b, index % 2),
+                 Inc(next_layer.result_gradients[dims[1],
+                                                 stride_rows * dims[2] + a,
+                                                 stride_cols * dims[3] + b],
+                     self.result_gradients[dims[1], dims[2], dims[3]])] +
                 next_layer.activation.backprop_eqs(next_layer,
-                                                   batch_constant), args)
+                                                   batch_constant), [])
 
 
 class FullyConnected(Layer):
