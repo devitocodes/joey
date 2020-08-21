@@ -2,7 +2,7 @@ import numpy as np
 from os import environ
 
 
-def compare(devito, pytorch):
+def compare(devito, pytorch, tolerance):
     pytorch = pytorch.detach().numpy()
 
     if devito.shape != pytorch.shape:
@@ -11,8 +11,7 @@ def compare(devito, pytorch):
     error = abs(devito - pytorch) / abs(pytorch)
     max_error = np.nanmax(error)
 
-    if not np.isnan(max_error):
-        assert(max_error < 1e-13)
+    assert(np.isnan(max_error) or max_error < tolerance)
 
 
 def running_in_parallel():

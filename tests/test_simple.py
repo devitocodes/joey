@@ -105,7 +105,7 @@ def test_forward_pass(net_arguments):
         outputs = net.forward(input_data)
         pytorch_outputs = pytorch_net(torch.from_numpy(input_data))
 
-        compare(outputs, nn.Softmax(dim=1)(pytorch_outputs))
+        compare(outputs, nn.Softmax(dim=1)(pytorch_outputs), 1e-14)
 
 
 def test_backward_pass(net_arguments):
@@ -159,7 +159,7 @@ def test_backward_pass(net_arguments):
             devito_layer = devito_layers[j]
 
             compare(devito_layer.kernel_gradients.data,
-                    pytorch_layer.weight.grad)
+                    pytorch_layer.weight.grad, 1e-13)
 
             compare(devito_layer.bias_gradients.data,
-                    pytorch_layer.bias.grad)
+                    pytorch_layer.bias.grad, 1e-13)
