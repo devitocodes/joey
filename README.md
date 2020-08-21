@@ -19,6 +19,7 @@ Unlike other machine learning frameworks, Joey generates and compiles an optimiz
 
 ## Supported activation functions
 * ReLU
+* Softmax (only via the `FullyConnectedSoftmax` class)
 * Dummy (`f(x) = x`)
 
 Other activation functions can be implemented by extending the `Activation` abstract class.
