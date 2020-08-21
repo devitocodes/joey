@@ -152,7 +152,7 @@ def test_forward_pass(net_arguments, mnist):
         outputs = net.forward(images.numpy())
         pytorch_outputs = pytorch_net(images)
 
-        compare(outputs, nn.Softmax(dim=1)(pytorch_outputs))
+        compare(outputs, nn.Softmax(dim=1)(pytorch_outputs), 1e-12)
 
 
 def test_backward_pass(net_arguments, mnist):
@@ -195,15 +195,14 @@ def test_backward_pass(net_arguments, mnist):
             devito_layer = devito_layers[j]
 
             compare(devito_layer.kernel_gradients.data,
-                    pytorch_layer.weight.grad)
+                    pytorch_layer.weight.grad, 1e-11)
 
             compare(devito_layer.bias_gradients.data,
-                    pytorch_layer.bias.grad)
+                    pytorch_layer.bias.grad, 1e-11)
 
 
-def test_training_sgd(net_arguments, mnist):
+def run_training(net_arguments, mnist, iterations):
     mnist_train, _ = mnist
-    iterations = 100
 
     net, pytorch_net, layers = net_arguments
 
@@ -216,6 +215,8 @@ def test_training_sgd(net_arguments, mnist):
     pytorch_layers = [pytorch_net.conv1, pytorch_net.conv2,
                       pytorch_net.fc1, pytorch_net.fc2, pytorch_net.fc3]
     devito_layers = [layers[0], layers[2], layers[5], layers[6], layers[7]]
+
+    epsilon = 1.26e-11
 
     for i, data in enumerate(mnist_train, 0):
         images, labels = data
@@ -238,7 +239,8 @@ def test_training_sgd(net_arguments, mnist):
         pytorch_optimizer.zero_grad()
         pytorch_outputs = pytorch_net(images)
 
-        compare(outputs, nn.Softmax(dim=1)(pytorch_outputs))
+        compare(outputs, nn.Softmax(dim=1)(pytorch_outputs),
+                1e-12 + i * epsilon)
 
         net.backward(loss_grad, optimizer)
 
@@ -250,8 +252,18 @@ def test_training_sgd(net_arguments, mnist):
             pytorch_layer = pytorch_layers[j]
             devito_layer = devito_layers[j]
 
-            compare(devito_layer.kernel.data, pytorch_layer.weight)
-            compare(devito_layer.bias.data, pytorch_layer.bias)
+            compare(devito_layer.kernel.data, pytorch_layer.weight,
+                    1e-12 + i * epsilon)
+            compare(devito_layer.bias.data, pytorch_layer.bias,
+                    1e-12 + i * epsilon)
 
         if i == iterations - 1:
             break
+
+
+def test_training_sgd(net_arguments, mnist):
+    run_training(net_arguments, mnist, 1)
+
+
+def test_training_sgd_many_iters(net_arguments, mnist):
+    run_training(net_arguments, mnist, 20)
