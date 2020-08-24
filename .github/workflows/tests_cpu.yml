@@ -9,19 +9,21 @@ on:
       - master
 
 jobs:
+  docker_build:
+    name: Build a Docker image
+    runs-on: [self-hosted, mpi]
+    steps:
+      - uses: actions/checkout@v2
+      - run: docker build -f Dockerfile_CPU -t devitocodes/joey:latest .
   test_cpu:
     name: Run pytest on Docker (CPU)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, mpi]
+    needs: [docker_build]
     steps:
-      - uses: actions/checkout@v2
-      - uses: satackey/action-docker-layer-caching@v0.0.5
-      - run: docker build -f Dockerfile_CPU -t devitocodes/joey:latest .
-      - run: docker run devitocodes/joey:latest pytest
+      - run: docker run -e DEVITO_LANGUAGE=C devitocodes/joey:latest pytest
   test_openmp:
     name: Run pytest on Docker (CPU with OpenMP)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, mpi]
+    needs: [docker_build]
     steps:
-      - uses: actions/checkout@v2
-      - uses: satackey/action-docker-layer-caching@v0.0.5
-      - run: docker build -f Dockerfile_CPU -t devitocodes/joey:latest .
       - run: docker run -e DEVITO_LANGUAGE=openmp devitocodes/joey:latest pytest
