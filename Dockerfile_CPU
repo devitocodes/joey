@@ -1,8 +1,9 @@
-FROM python:3
+FROM ubuntu:latest
+RUN apt-get update && apt-get -y upgrade && apt-get -y install python3-pip build-essential
 WORKDIR /usr/src/app
-RUN pip install torch==1.6.0+cpu torchvision==0.7.0+cpu -f https://download.pytorch.org/whl/torch_stable.html
+RUN pip3 install torch==1.6.0+cpu torchvision==0.7.0+cpu -f https://download.pytorch.org/whl/torch_stable.html
 COPY requirements.txt joey/
-RUN pip install -r joey/requirements.txt
+RUN pip3 install -r joey/requirements.txt
 COPY . joey/
-RUN pip install -e joey
+RUN pip3 install -e joey
 WORKDIR /usr/src/app/joey
