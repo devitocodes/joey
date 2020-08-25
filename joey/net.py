@@ -1,16 +1,11 @@
 import joey as ml
 import numpy as np
-from devito import Eq, Inc, Operator, ConditionalDimension, Ne, Function, \
-    Constant
-from joey import default_name_allocator as alloc
-from joey import default_dim_allocator as dim_alloc
-from sympy import And
+from devito import Eq, Operator
 
 
 class Net:
     def __init__(self, layers: list):
         self._layers = layers
-        self._batch_constant = Constant(name='batch', dtype=np.int32)
         self._forward_arg_dict = {}
         self._backward_arg_dict = {}
 
@@ -83,8 +78,7 @@ class Net:
                 next_layer = None
 
             layer_eqs, layer_args = \
-                self._layers[i].backprop_equations(prev_layer, next_layer,
-                                                   self._batch_constant)
+                self._layers[i].backprop_equations(prev_layer, next_layer)
 
             args += layer_args
             eqs += layer_eqs
@@ -111,16 +105,21 @@ class Net:
             if layer.bias_gradients is not None:
                 layer.bias_gradients.data[:] = 0
 
-        if len(self._layers[-1].result.shape) < 2:
-            batch_size = 1
-        else:
-            batch_size = self._layers[-1].result.shape[1]
+            if layer.result_gradients is not None:
+                layer.result_gradients.data[:] = 0
 
-        for i in range(batch_size):
-            self._batch_constant.data = i
-            self._layers[-1].result_gradients.data[:] = \
-                loss_gradient_func(self._layers[-1], i)
-            self._backward_operator.apply(**self._backward_arg_dict)
+        batch_size = self._layers[-1].result.shape[1]
+
+        self._layers[-1].result_gradients.data[:] = \
+            np.transpose(np.array(loss_gradient_func(self._layers[-1])))
+        self._backward_operator.apply(**self._backward_arg_dict)
+
+        for layer in self._layers:
+            if layer.kernel_gradients is not None:
+                layer.kernel_gradients.data[:] /= batch_size
+
+            if layer.bias_gradients is not None:
+                layer.bias_gradients.data[:] /= batch_size
 
         if pytorch_optimizer is not None:
             pytorch_optimizer.step()

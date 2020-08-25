@@ -130,6 +130,5 @@ class Layer(ABC):
         pass
 
     @abstractmethod
-    def backprop_equations(self, prev_layer, next_layer,
-                           batch_constant) -> (list, list):
+    def backprop_equations(self, prev_layer, next_layer) -> (list, list):
         pass
