@@ -153,7 +153,7 @@ class Conv(Layer):
 
         return (eqs, [])
 
-    def backprop_equations(self, prev_layer, next_layer, batch_constant):
+    def backprop_equations(self, prev_layer, next_layer):
         layer = self
 
         kernel_dims = layer.kernel_gradients.dimensions
@@ -205,8 +205,7 @@ class Conv(Layer):
                                                next_dims[3] - width + 1 +
                                                kernel_dims[3]],
                         implicit_dims=(cd1, cd2))] + \
-                next_layer.activation.backprop_eqs(next_layer,
-                                                   batch_constant)
+                next_layer.activation.backprop_eqs(next_layer)
 
         return (eqs, [])
 
@@ -319,7 +318,7 @@ class Pooling(Layer):
         pass
 
     @abstractmethod
-    def backprop_equations(self, prev_layer, next_layer, batch_constant):
+    def backprop_equations(self, prev_layer, next_layer):
         pass
 
 
@@ -375,7 +374,7 @@ class MaxPooling(Pooling):
 
         return (eqs, args)
 
-    def backprop_equations(self, prev_layer, next_layer, batch_constant):
+    def backprop_equations(self, prev_layer, next_layer):
         if next_layer is None:
             return ([], [])
 
@@ -400,8 +399,7 @@ class MaxPooling(Pooling):
                                                  stride_cols * dims[3] + b],
                      self.result_gradients[dims[0],
                                            dims[1], dims[2], dims[3]])] +
-                next_layer.activation.backprop_eqs(next_layer,
-                                                   batch_constant), [])
+                next_layer.activation.backprop_eqs(next_layer), [])
 
 
 class FullyConnected(Layer):
@@ -482,7 +480,7 @@ class FullyConnected(Layer):
 
         return (eqs, [])
 
-    def backprop_equations(self, prev_layer, next_layer, batch_constant):
+    def backprop_equations(self, prev_layer, next_layer):
         layer = self
 
         dims = layer.result_gradients.dimensions
@@ -501,7 +499,7 @@ class FullyConnected(Layer):
         return ([Inc(layer.result_gradients[dims[0], dims[1]],
                      prev_layer.kernel[prev_dims[0], dims[0]] *
                      prev_layer.result_gradients[prev_dims[0], dims[1]])] +
-                layer.activation.backprop_eqs(layer, batch_constant) +
+                layer.activation.backprop_eqs(layer) +
                 [Inc(layer.bias_gradients, layer.result_gradients),
                  Eq(layer.kernel_gradients[kernel_dims[0], kernel_dims[1]],
                     layer.kernel_gradients[kernel_dims[0], kernel_dims[1]] +
@@ -577,7 +575,7 @@ class Flat(Layer):
         return ([Eq(self._R[b * height * width + c * height + d, a],
                     self._I[a, b, c, d]) for a in range(batch_size)], [])
 
-    def backprop_equations(self, prev_layer, next_layer, batch_constant):
+    def backprop_equations(self, prev_layer, next_layer):
         layer = self
 
         prev_kernel_dims = prev_layer.kernel_gradients.dimensions
@@ -596,5 +594,4 @@ class Flat(Layer):
                                            next_dims[2] * height +
                                            next_dims[3], batch])
                  for batch in range(batch_size)] +
-                next_layer.activation.backprop_eqs(next_layer, batch_constant),
-                [])
+                next_layer.activation.backprop_eqs(next_layer), [])

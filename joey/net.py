@@ -1,16 +1,11 @@
 import joey as ml
 import numpy as np
-from devito import Eq, Inc, Operator, ConditionalDimension, Ne, Function, \
-    Constant
-from joey import default_name_allocator as alloc
-from joey import default_dim_allocator as dim_alloc
-from sympy import And
+from devito import Eq, Operator
 
 
 class Net:
     def __init__(self, layers: list):
         self._layers = layers
-        self._batch_constant = Constant(name='batch', dtype=np.int32)
         self._forward_arg_dict = {}
         self._backward_arg_dict = {}
 
@@ -83,8 +78,7 @@ class Net:
                 next_layer = None
 
             layer_eqs, layer_args = \
-                self._layers[i].backprop_equations(prev_layer, next_layer,
-                                                   self._batch_constant)
+                self._layers[i].backprop_equations(prev_layer, next_layer)
 
             args += layer_args
             eqs += layer_eqs
