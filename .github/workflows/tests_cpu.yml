@@ -12,19 +12,19 @@ on:
 jobs:
   docker_build:
     name: Build a Docker image
-    runs-on: [self-hosted, mpi]
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v2
       - run: docker build -f Dockerfile_CPU -t devitocodes/joey:latest .
   test_cpu:
     name: Run pytest on Docker (CPU)
-    runs-on: [self-hosted, mpi]
+    runs-on: self-hosted
     needs: [docker_build]
     steps:
       - run: docker run -e DEVITO_LANGUAGE=C devitocodes/joey:latest pytest
   test_openmp:
     name: Run pytest on Docker (CPU with OpenMP)
-    runs-on: [self-hosted, mpi]
+    runs-on: self-hosted
     needs: [docker_build]
     steps:
       - run: docker run -e DEVITO_LANGUAGE=openmp devitocodes/joey:latest pytest
