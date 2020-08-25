@@ -111,16 +111,21 @@ class Net:
             if layer.bias_gradients is not None:
                 layer.bias_gradients.data[:] = 0
 
-        if len(self._layers[-1].result.shape) < 2:
-            batch_size = 1
-        else:
-            batch_size = self._layers[-1].result.shape[1]
+            if layer.result_gradients is not None:
+                layer.result_gradients.data[:] = 0
 
-        for i in range(batch_size):
-            self._batch_constant.data = i
-            self._layers[-1].result_gradients.data[:] = \
-                loss_gradient_func(self._layers[-1], i)
-            self._backward_operator.apply(**self._backward_arg_dict)
+        batch_size = self._layers[-1].result.shape[1]
+
+        self._layers[-1].result_gradients.data[:] = \
+            np.transpose(np.array(loss_gradient_func(self._layers[-1])))
+        self._backward_operator.apply(**self._backward_arg_dict)
+
+        for layer in self._layers:
+            if layer.kernel_gradients is not None:
+                layer.kernel_gradients.data[:] /= batch_size
+
+            if layer.bias_gradients is not None:
+                layer.bias_gradients.data[:] /= batch_size
 
         if pytorch_optimizer is not None:
             pytorch_optimizer.step()
