@@ -31,4 +31,4 @@ jobs:
           pip install -r requirements.txt
       - run: pip install -e .
       - run: DEVITO_LANGUAGE=C pytest
-      - run: DEVITO_LANGUAGE=openmp pytest
+      - run: DEVITO_LANGUAGE=openmp DEVITO_ARCH=gcc-9 pytest
