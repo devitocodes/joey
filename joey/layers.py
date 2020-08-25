@@ -483,8 +483,7 @@ class MaxPooling(Pooling):
         a = self._backward_tmp_constants[0]
         b = self._backward_tmp_constants[1]
 
-        return ([Eq(next_layer.result_gradients, 0),
-                 Eq(a, index // 2),
+        return ([Eq(a, index // 2),
                  Eq(b, index % 2),
                  Inc(next_layer.result_gradients[dims[0],
                                                  dims[1],
