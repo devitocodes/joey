@@ -201,7 +201,7 @@ def test_backward_pass(net_arguments, mnist):
                     pytorch_layer.bias.grad, 1e-11)
 
 
-def run_training(net_arguments, mnist, iterations):
+def run_training(net_arguments, mnist):
     mnist_train, _ = mnist
 
     net, pytorch_net, layers = net_arguments
@@ -216,54 +216,44 @@ def run_training(net_arguments, mnist, iterations):
                       pytorch_net.fc1, pytorch_net.fc2, pytorch_net.fc3]
     devito_layers = [layers[0], layers[2], layers[5], layers[6], layers[7]]
 
-    epsilon = 1.26e-11
+    images, labels = iter(mnist_train).next()
 
-    for i, data in enumerate(mnist_train, 0):
-        images, labels = data
+    def loss_grad(layer, b):
+        gradients = []
 
-        def loss_grad(layer, b):
-            gradients = []
+        for j in range(10):
+            result = layer.result.data[j, b]
+            if j == labels[b]:
+                result -= 1
+            gradients.append(result)
 
-            for j in range(10):
-                result = layer.result.data[j, b]
-                if j == labels[b]:
-                    result -= 1
-                gradients.append(result)
+        return gradients
 
-            return gradients
+    images = images.double()
 
-        images = images.double()
+    outputs = net.forward(images.numpy())
 
-        outputs = net.forward(images.numpy())
+    pytorch_optimizer.zero_grad()
+    pytorch_outputs = pytorch_net(images)
 
-        pytorch_optimizer.zero_grad()
-        pytorch_outputs = pytorch_net(images)
+    compare(outputs, nn.Softmax(dim=1)(pytorch_outputs),
+            1e-12)
 
-        compare(outputs, nn.Softmax(dim=1)(pytorch_outputs),
-                1e-12 + i * epsilon)
+    net.backward(loss_grad, optimizer)
 
-        net.backward(loss_grad, optimizer)
+    pytorch_loss = criterion(pytorch_outputs, labels)
+    pytorch_loss.backward()
+    pytorch_optimizer.step()
 
-        pytorch_loss = criterion(pytorch_outputs, labels)
-        pytorch_loss.backward()
-        pytorch_optimizer.step()
+    for j in range(len(pytorch_layers) - 1, -1, -1):
+        pytorch_layer = pytorch_layers[j]
+        devito_layer = devito_layers[j]
 
-        for j in range(len(pytorch_layers) - 1, -1, -1):
-            pytorch_layer = pytorch_layers[j]
-            devito_layer = devito_layers[j]
-
-            compare(devito_layer.kernel.data, pytorch_layer.weight,
-                    1e-12 + i * epsilon)
-            compare(devito_layer.bias.data, pytorch_layer.bias,
-                    1e-12 + i * epsilon)
-
-        if i == iterations - 1:
-            break
+        compare(devito_layer.kernel.data, pytorch_layer.weight,
+                1e-12)
+        compare(devito_layer.bias.data, pytorch_layer.bias,
+                1e-12)
 
 
 def test_training_sgd(net_arguments, mnist):
-    run_training(net_arguments, mnist, 1)
-
-
-def test_training_sgd_many_iters(net_arguments, mnist):
-    run_training(net_arguments, mnist, 20)
+    run_training(net_arguments, mnist)
