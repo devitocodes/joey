@@ -129,14 +129,17 @@ def test_backward_pass(net_arguments):
                           dtype=np.float64)
     expected = np.array([2, 1])
 
-    def loss_grad(layer, b):
+    def loss_grad(layer):
         gradients = []
 
-        for i in range(3):
-            result = layer.result.data[i, b]
-            if i == expected[b]:
-                result -= 1
-            gradients.append(result)
+        for b in range(2):
+            row = []
+            for j in range(3):
+                result = layer.result.data[j, b]
+                if j == expected[b]:
+                    result -= 1
+                row.append(result)
+            gradients.append(row)
 
         return gradients
 

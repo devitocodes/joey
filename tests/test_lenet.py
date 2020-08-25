@@ -162,14 +162,17 @@ def test_backward_pass(net_arguments, mnist):
 
     images, labels = iter(mnist_train).next()
 
-    def loss_grad(layer, b):
+    def loss_grad(layer):
         gradients = []
 
-        for j in range(10):
-            result = layer.result.data[j, b]
-            if j == labels[b]:
-                result -= 1
-            gradients.append(result)
+        for b in range(4):
+            row = []
+            for j in range(10):
+                result = layer.result.data[j, b]
+                if j == labels[b]:
+                    result -= 1
+                row.append(result)
+            gradients.append(row)
 
         return gradients
 
@@ -218,14 +221,17 @@ def run_training(net_arguments, mnist):
 
     images, labels = iter(mnist_train).next()
 
-    def loss_grad(layer, b):
+    def loss_grad(layer):
         gradients = []
 
-        for j in range(10):
-            result = layer.result.data[j, b]
-            if j == labels[b]:
-                result -= 1
-            gradients.append(result)
+        for b in range(4):
+            row = []
+            for j in range(10):
+                result = layer.result.data[j, b]
+                if j == labels[b]:
+                    result -= 1
+                row.append(result)
+            gradients.append(row)
 
         return gradients
 
