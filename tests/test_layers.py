@@ -8,7 +8,8 @@ logger.set_log_noperf()
 
 
 def test_conv():
-    layer = joey.Conv(kernel_size=(2, 2, 2), input_size=(2, 2, 3, 3))
+    layer = joey.Conv(kernel_size=(2, 2, 2), input_size=(2, 2, 3, 3),
+                      generate_code=True)
     layer.kernel.data[:] = [[[[1, -2],
                               [3, 4]],
                              [[5, 6],
@@ -44,7 +45,7 @@ def test_conv():
 
 def test_conv_relu():
     layer = joey.Conv(kernel_size=(2, 2, 2), input_size=(2, 2, 3, 3),
-                      activation=ReLU())
+                      activation=ReLU(), generate_code=True)
     layer.kernel.data[:] = [[[[1, -2],
                               [3, 4]],
                              [[5, 6],
@@ -80,7 +81,8 @@ def test_conv_relu():
 
 def test_conv_larger_stride():
     layer = joey.Conv(kernel_size=(2, 2, 2), input_size=(2, 2, 3, 3),
-                      stride=(2, 1), strict_stride_check=False)
+                      stride=(2, 1), strict_stride_check=False,
+                      generate_code=True)
     layer.kernel.data[:] = [[[[1, -2],
                               [3, 4]],
                              [[5, 6],
@@ -111,7 +113,8 @@ def test_conv_larger_stride():
 
 
 def test_max_pooling():
-    layer = joey.MaxPooling(kernel_size=(2, 2), input_size=(2, 2, 3, 3))
+    layer = joey.MaxPooling(kernel_size=(2, 2), input_size=(2, 2, 3, 3),
+                            generate_code=True)
 
     for i in range(get_run_count()):
         output = layer.execute(np.array([[[[1, 2, 3],
@@ -139,7 +142,8 @@ def test_max_pooling():
 
 def test_max_pooling_larger_stride():
     layer = joey.MaxPooling(kernel_size=(2, 2), input_size=(2, 2, 3, 3),
-                            stride=(1, 2), strict_stride_check=False)
+                            stride=(1, 2), strict_stride_check=False,
+                            generate_code=True)
 
     for i in range(get_run_count()):
         output = layer.execute(np.array([[[[1, 2, 3],
@@ -167,7 +171,7 @@ def test_max_pooling_larger_stride():
 
 def test_max_pooling_relu():
     layer = joey.MaxPooling(kernel_size=(2, 2), input_size=(2, 2, 3, 3),
-                            activation=ReLU())
+                            activation=ReLU(), generate_code=True)
 
     for i in range(get_run_count()):
         output = layer.execute(np.array([[[[-1, -2, 3],
@@ -194,7 +198,7 @@ def test_max_pooling_relu():
 
 
 def test_flat():
-    layer = joey.Flat(input_size=(2, 2, 3, 3))
+    layer = joey.Flat(input_size=(2, 2, 3, 3), generate_code=True)
 
     for i in range(get_run_count()):
         output = layer.execute([[[[1, 2, 3],
@@ -231,7 +235,8 @@ def test_flat():
 
 
 def test_fully_connected():
-    layer = joey.FullyConnected(weight_size=(3, 3), input_size=(3, 1))
+    layer = joey.FullyConnected(weight_size=(3, 3), input_size=(3, 1),
+                                generate_code=True)
     layer.kernel.data[:] = [[1, 2, 3],
                             [4, 5, 6],
                             [7, 8, 9]]
@@ -244,7 +249,7 @@ def test_fully_connected():
 
 def test_fully_connected_relu():
     layer = joey.FullyConnected(weight_size=(3, 3), input_size=(3, 1),
-                                activation=ReLU())
+                                activation=ReLU(), generate_code=True)
     layer.kernel.data[:] = [[1, 2, 3],
                             [4, 5, 6],
                             [7, 8, 9]]
