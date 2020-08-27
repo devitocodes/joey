@@ -14,7 +14,7 @@ class Conv(Layer):
     def __init__(self, kernel_size, input_size,
                  name_allocator_func=alloc, dim_allocator_func=dim_alloc,
                  stride=(1, 1), padding=(0, 0),
-                 activation=None, generate_code=True,
+                 activation=None, generate_code=False,
                  strict_stride_check=True):
         # Kernel size argument (kernel_size) is expressed as
         # (output channels / kernel count, rows, columns).
@@ -214,7 +214,7 @@ class Pooling(Layer):
     def __init__(self, kernel_size, input_size,
                  name_allocator_func=alloc, dim_allocator_func=dim_alloc,
                  stride=(1, 1), padding=(0, 0), activation=None,
-                 generate_code=True, strict_stride_check=True):
+                 generate_code=False, strict_stride_check=True):
         # Kernel size is expressed as (rows, columns).
         # Input size is expressed as (batch size, channels, rows, columns).
 
@@ -405,7 +405,7 @@ class MaxPooling(Pooling):
 class FullyConnected(Layer):
     def __init__(self, weight_size, input_size, name_allocator_func=alloc,
                  dim_allocator_func=dim_alloc, activation=None,
-                 generate_code=True):
+                 generate_code=False):
         # Weight and input sizes are expressed as (rows, columns).
 
         super().__init__(weight_size, input_size, activation,
@@ -509,7 +509,7 @@ class FullyConnected(Layer):
 
 class FullyConnectedSoftmax(FullyConnected):
     def __init__(self, weight_size, input_size, name_allocator_func=alloc,
-                 dim_allocator_func=dim_alloc, generate_code=True):
+                 dim_allocator_func=dim_alloc, generate_code=False):
         # Size units are the same as the FullyConnected ones.
 
         self._name_allocator = name_allocator_func
@@ -538,7 +538,7 @@ class FullyConnectedSoftmax(FullyConnected):
 
 class Flat(Layer):
     def __init__(self, input_size, name_allocator_func=alloc,
-                 dim_allocator_func=dim_alloc, generate_code=True):
+                 dim_allocator_func=dim_alloc, generate_code=False):
         # Input size is expressed as (batch size, channels, rows, columns).
 
         super().__init__(None, input_size, None, name_allocator_func,

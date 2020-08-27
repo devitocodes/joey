@@ -30,7 +30,7 @@ class Layer(ABC):
                  input_size, activation=activ.Dummy(),
                  name_allocator_func=default_name_allocator,
                  dim_allocator_func=default_dim_allocator,
-                 generate_code=True):
+                 generate_code=False):
         if activation is None:
             activation = activ.Dummy()
 
