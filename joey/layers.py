@@ -9,18 +9,55 @@ from sympy import exp, Max, And, Min, sign
 import numpy as np
 
 
-# Mathematically, Conv uses a cross-correlation operation.
 class Conv(Layer):
+    """
+    A Layer subclass corresponding to a 2D convolution layer (mathematically,
+    it performs a cross-correlation operation).
+
+    Parameters
+    ----------
+    kernel_size : (int, int, int)
+        The shape of a kernel (represented internally by a NumPy array)
+        expressed as (output channels / kernel count, rows, columns).
+    input_size : (int, int, int, int)
+        The shape of input data expressed as
+        (batch size, channels, rows, columns).
+    name_allocator_func : zero-argument function, optional
+        See Layer.__doc__.
+    dim_allocator_func : one-argument function, optional
+        See Layer.__doc__.
+    stride : (int, int), optional
+        Stride of the layer expressed as (rows, columns). The default
+        value is (1, 1).
+    padding : (int, int), optional
+        Padding of the layer expressed as (rows, columns). The default
+        value is (0, 0).
+
+        Be careful! The current version of Joey supports non-zero padding
+        ONLY for standalone layers. When you create a neural network, all
+        of its layers must have (0, 0) padding.
+    activation : Activation, optional
+        See Layer.__doc__. The actual default value is Dummy.
+    generate_code : bool, optional
+        See Layer.__doc__.
+    strict_stride_check : bool, optional
+        A boolean indicating whether a strict stride check should be
+        performed when instantiating this object. The default value is
+        True.
+
+        If the check is disabled and the stride turns out to be
+        incompatible with the provided kernel, input and padding sizes,
+        some parts of input data will not be processed. This behaviour
+        is intentional, its aim is avoiding any out-of-bounds accesses.
+    """
+
     def __init__(self, kernel_size, input_size,
                  name_allocator_func=alloc, dim_allocator_func=dim_alloc,
                  stride=(1, 1), padding=(0, 0),
                  activation=None, generate_code=False,
                  strict_stride_check=True):
-        # Kernel size argument (kernel_size) is expressed as
-        # (output channels / kernel count, rows, columns).
         # Internal kernel size (self._kernel_size) is expressed as
         # (output channels / kernel count, input channels, rows, columns).
-        # Input size is expressed as (batch size, channels, rows, columns).
 
         self._error_check(kernel_size, input_size, stride, padding,
                           strict_stride_check)
@@ -64,7 +101,9 @@ class Conv(Layer):
                (map_width - kernel_width) % stride[1] != 0:
                 raise Exception("Stride " + str(stride) + " is not "
                                 "compatible with feature map, kernel and "
-                                "padding sizes")
+                                "padding sizes. If you want to proceed "
+                                "anyway, set strict_stride_check=False when "
+                                "instantiating this object")
 
     def _allocate(self, kernel_size, input_size, name_allocator_func,
                   dim_allocator_func):
@@ -211,6 +250,48 @@ class Conv(Layer):
 
 
 class Pooling(Layer):
+    """
+    A Layer abstract subclass corresponding to a generic pooling layer.
+    When you create a subclass of Pooling, you have to implement
+    the following methods: equations(), backprop_equations().
+
+    Parameters
+    ----------
+    kernel_size : (int, int)
+        The shape of a kernel (represented internally by a NumPy array)
+        expressed as (rows, columns).
+    input_size : (int, int, int, int)
+        The shape of input data expressed as
+        (batch size, channels, rows, columns).
+    name_allocator_func : zero-argument function, optional
+        See Layer.__doc__.
+    dim_allocator_func : one-argument function, optional
+        See Layer.__doc__.
+    stride : (int, int), optional
+        Stride of the layer expressed as (rows, columns). The default
+        value is (1, 1).
+    padding : (int, int), optional
+        Padding of the layer expressed as (rows, columns). The default
+        value is (0, 0).
+
+        Be careful! The current version of Joey supports non-zero padding
+        ONLY for standalone layers. When you create a neural network, all
+        of its layers must have (0, 0) padding.
+    activation : Activation, optional
+        See Layer.__doc__. The actual default value is Dummy.
+    generate_code : bool, optional
+        See Layer.__doc__.
+    strict_stride_check : bool, optional
+        A boolean indicating whether a strict stride check should be
+        performed when instantiating this object. The default value is
+        True.
+
+        If the check is disabled and the stride turns out to be
+        incompatible with the provided kernel, input and padding sizes,
+        some parts of input data will not be processed. This behaviour
+        is intentional, its aim is avoiding any out-of-bounds accesses.
+    """
+
     def __init__(self, kernel_size, input_size,
                  name_allocator_func=alloc, dim_allocator_func=dim_alloc,
                  stride=(1, 1), padding=(0, 0), activation=None,
@@ -259,7 +340,9 @@ class Pooling(Layer):
                (map_width - kernel_width) % stride[1] != 0:
                 raise Exception("Stride " + str(stride) + " is not "
                                 "compatible with feature map, kernel and "
-                                "padding sizes")
+                                "padding sizes. If you want to proceed "
+                                "anyway, set strict_stride_check=False "
+                                "when instantiating this object")
 
     def _allocate(self, kernel_size, input_size, name_allocator_func,
                   dim_allocator_func):
@@ -293,10 +376,12 @@ class Pooling(Layer):
 
     @property
     def stride(self):
+        """Stride of the layer."""
         return self._stride
 
     @property
     def kernel_size(self):
+        """The kernel size of the layer."""
         return self._kernel_size
 
     def execute(self, input_data):
@@ -323,6 +408,14 @@ class Pooling(Layer):
 
 
 class MaxPooling(Pooling):
+    """
+    A Layer/Pooling subclass corresponding to a max pooling layer.
+
+    Parameters
+    ----------
+    See Pooling.__doc__.
+    """
+
     def __init__(self, *args, **kwargs):
         self._indices = None
         self._forward_tmp_constants = None
@@ -403,11 +496,29 @@ class MaxPooling(Pooling):
 
 
 class FullyConnected(Layer):
+    """
+    A Layer subclass corresponding to a full connection (FC) layer.
+
+    Parameters
+    ----------
+    weight_size : (int, int)
+        The shape of a weight matrix (represented internally by a NumPy array)
+        expressed as (rows, columns).
+    input_size : (int, int)
+        The shape of input data expressed as (rows, columns).
+    name_allocator_func : zero-argument function, optional
+        See Layer.__doc__.
+    dim_allocator_func : one-argument function, optional
+        See Layer.__doc__.
+    activation : Activation, optional
+        See Layer.__doc__. The actual default value is Dummy.
+    generate_code : bool, optional
+        See Layer.__doc__.
+    """
+
     def __init__(self, weight_size, input_size, name_allocator_func=alloc,
                  dim_allocator_func=dim_alloc, activation=None,
                  generate_code=False):
-        # Weight and input sizes are expressed as (rows, columns).
-
         super().__init__(weight_size, input_size, activation,
                          name_allocator_func, dim_allocator_func,
                          generate_code)
@@ -508,10 +619,27 @@ class FullyConnected(Layer):
 
 
 class FullyConnectedSoftmax(FullyConnected):
+    """
+    A Layer/FullyConnected subclass corresponding to a full connection (FC)
+    layer with the softmax activation.
+
+    Parameters
+    ----------
+    weight_size : (int, int)
+        The shape of a weight matrix (represented internally by a NumPy array)
+        expressed as (rows, columns).
+    input_size : (int, int)
+        The shape of input data expressed as (rows, columns).
+    name_allocator_func : zero-argument function, optional
+        See Layer.__doc__.
+    dim_allocator_func : one-argument function, optional
+        See Layer.__doc__.
+    generate_code : bool, optional
+        See Layer.__doc__.
+    """
+
     def __init__(self, weight_size, input_size, name_allocator_func=alloc,
                  dim_allocator_func=dim_alloc, generate_code=False):
-        # Size units are the same as the FullyConnected ones.
-
         self._name_allocator = name_allocator_func
         self._dim_allocator = dim_allocator_func
         super().__init__(weight_size, input_size, name_allocator_func,
@@ -537,6 +665,28 @@ class FullyConnectedSoftmax(FullyConnected):
 
 
 class Flat(Layer):
+    """
+    A Layer subclass corresponding to an internal flattening layer turning
+    a 4D array into a 2D matrix required by a full connection (FC) layer.
+
+    When creating a neural network, you have to put Flat between
+    a pooling/convolution layer and an FC layer.
+
+    Parameters
+    ----------
+    input_size : (int, int)
+        The shape of input data expressed as (batch size, channels,
+        rows, columns).
+
+        The output shape will be (channels * rows * columns, batch size).
+    name_allocator_func : zero-argument function, optional
+        See Layer.__doc__.
+    dim_allocator_func : one-argument function, optional
+        See Layer.__doc__.
+    generate_code : bool, optional
+        See Layer.__doc__.
+    """
+
     def __init__(self, input_size, name_allocator_func=alloc,
                  dim_allocator_func=dim_alloc, generate_code=False):
         # Input size is expressed as (batch size, channels, rows, columns).
