@@ -129,7 +129,7 @@ def test_backward_pass(net_arguments):
                           dtype=np.float64)
     expected = np.array([2, 1])
 
-    def loss_grad(layer):
+    def loss_grad(layer, expected):
         gradients = []
 
         for b in range(2):
@@ -145,7 +145,7 @@ def test_backward_pass(net_arguments):
 
     for i in range(get_run_count()):
         net.forward(input_data)
-        net.backward(loss_grad)
+        net.backward(expected, loss_grad)
 
         criterion = nn.CrossEntropyLoss()
 
