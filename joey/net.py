@@ -34,6 +34,9 @@ class Net:
         self._forward_operator = Operator(eqs)
         self._backward_operator = Operator(backprop_eqs)
 
+        self._forward_operator.cfunction
+        self._backward_operator.cfunction
+
     def _init_parameters(self):
         for layer in self._layers:
             if layer.kernel is not None:
