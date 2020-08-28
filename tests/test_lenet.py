@@ -162,14 +162,14 @@ def test_backward_pass(net_arguments, mnist):
 
     images, labels = iter(mnist_train).next()
 
-    def loss_grad(layer):
+    def loss_grad(layer, expected):
         gradients = []
 
         for b in range(4):
             row = []
             for j in range(10):
                 result = layer.result.data[j, b]
-                if j == labels[b]:
+                if j == expected[b]:
                     result -= 1
                 row.append(result)
             gradients.append(row)
@@ -180,7 +180,7 @@ def test_backward_pass(net_arguments, mnist):
 
     for i in range(get_run_count()):
         net.forward(images.numpy())
-        net.backward(loss_grad)
+        net.backward(labels, loss_grad)
 
         criterion = nn.CrossEntropyLoss()
 
@@ -221,14 +221,14 @@ def run_training(net_arguments, mnist):
 
     images, labels = iter(mnist_train).next()
 
-    def loss_grad(layer):
+    def loss_grad(layer, expected):
         gradients = []
 
         for b in range(4):
             row = []
             for j in range(10):
                 result = layer.result.data[j, b]
-                if j == labels[b]:
+                if j == expected[b]:
                     result -= 1
                 row.append(result)
             gradients.append(row)
@@ -245,7 +245,7 @@ def run_training(net_arguments, mnist):
     compare(outputs, nn.Softmax(dim=1)(pytorch_outputs),
             1e-12)
 
-    net.backward(loss_grad, optimizer)
+    net.backward(labels, loss_grad, optimizer)
 
     pytorch_loss = criterion(pytorch_outputs, labels)
     pytorch_loss.backward()

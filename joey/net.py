@@ -4,6 +4,22 @@ from devito import Eq, Operator
 
 
 class Net:
+    """
+    A class representing a neural network consisting of several layers.
+
+    Parameters
+    ----------
+    layers : list of Layer
+        The list of layers of a network, where the first element is an
+        input layer and the last element is an output layer.
+
+        All layers in the list should have been instantiated with
+        generate_code=False.
+
+    When instantiating this object, a C code is generated and compiled
+    for both a forward and backward pass. The code is unique for the network.
+    """
+
     def __init__(self, layers: list):
         self._layers = layers
         self._forward_arg_dict = {}
@@ -33,6 +49,9 @@ class Net:
 
         self._forward_operator = Operator(eqs)
         self._backward_operator = Operator(backprop_eqs)
+
+        self._forward_operator.cfunction
+        self._backward_operator.cfunction
 
     def _init_parameters(self):
         for layer in self._layers:
@@ -87,9 +106,18 @@ class Net:
 
     @property
     def pytorch_parameters(self):
+        """A list of network parameters suitable for a PyTorch optimizer."""
         return self._parameters
 
     def forward(self, input_data):
+        """
+        Runs a forward pass through the network and returns its result.
+
+        Parameters
+        ----------
+        input_data : np.ndarray
+            Input data for the network.
+        """
         for layer in self._layers:
             layer.result.data[:] = 0
 
@@ -97,7 +125,35 @@ class Net:
         self._forward_operator.apply(**self._forward_arg_dict)
         return self._layers[-1].result.data
 
-    def backward(self, loss_gradient_func, pytorch_optimizer=None):
+    def backward(self, expected, loss_gradient_func, pytorch_optimizer=None):
+        """
+        Runs a backward (backpropagation) pass through the network and
+        updates the network parameters if possible.
+
+        Parameters
+        ----------
+        expected : list or np.ndarray
+            The list of expected results of a forward pass. It must have the
+            same length as the batch size.
+        loss_gradient_func : two-argument function
+            A loss function to be used for a backward pass. It must accept
+            two arguments: an output layer (a Layer subclass) and the list of
+            expected results (see 'expected' for the details). The forward
+            pass results will have been provided in the output layer through
+            its 'result' property.
+
+            The function must return either a list or a NumPy array with the
+            loss values corresponding to the forward pass values (and where
+            batch elements are arranged in rows rather than columns). If in
+            doubt, you can have a look at examples inside the 'examples'
+            directory in the Joey repository.
+        pytorch_optimizer : torch.optim.Optimizer, optional
+            A PyTorch optimizer that will be used for updating the network
+            parameters after running a backward pass. If it's None, only
+            backpropagation will be performed.
+
+            The default value is None.
+        """
         for layer in self._layers:
             if layer.kernel_gradients is not None:
                 layer.kernel_gradients.data[:] = 0
@@ -111,7 +167,8 @@ class Net:
         batch_size = self._layers[-1].result.shape[1]
 
         self._layers[-1].result_gradients.data[:] = \
-            np.transpose(np.array(loss_gradient_func(self._layers[-1])))
+            np.transpose(np.array(loss_gradient_func(self._layers[-1],
+                                                     expected)))
         self._backward_operator.apply(**self._backward_arg_dict)
 
         for layer in self._layers:

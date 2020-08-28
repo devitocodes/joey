@@ -44,4 +44,10 @@ Done! You can now use Joey in your environment. If you want to make changes to t
 Joey is not available on PyPI yet.
 
 ## How to use
-The documentation is currently under construction. In the meantime, you can have a look at examples in `examples`.
+To start working with Joey, import the following packages:
+```
+import joey
+import joey.activation  # If you want to use activation in neural network layers
+```
+
+Afterwards, you are free to use all functions Joey offers. The recommended way of getting started is going through examples inside the `examples` directory in this repository and looking at `__doc__` that is provided in every Joey class and public/abstract class method.
