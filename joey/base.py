@@ -207,7 +207,7 @@ class Layer(ABC):
     @abstractmethod
     def backprop_equations(self, prev_layer, next_layer) -> (list, list):
         """
-        Returns a two-tuple of lists. The first lists consists of Devito
+        Returns a two-tuple of lists. The first list consists of Devito
         equations describing how a backward pass through the layer should work.
         The second list consists of (key, value) pairs describing what keyword
         arguments should be passed to Operator.apply() when running
