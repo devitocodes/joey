@@ -14,21 +14,28 @@ jobs:
     name: Run pytest (CPU + CPU with OpenMP)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v2
+      - name: Download Joey
+        uses: actions/checkout@v2
+      - name: Set up Python 3.x
+        uses: actions/setup-python@v2
         with:
           python-version: '3.x'
-      - uses: actions/cache@v2
+      - name: Fetch cache
+        uses: actions/cache@v2
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
             ${{ runner.os }}-
-      - run: |
+      - name: Install dependencies
+        run: |
           python -m pip install --upgrade pip
           pip install torch==1.6.0+cpu torchvision==0.7.0+cpu -f https://download.pytorch.org/whl/torch_stable.html
           pip install -r requirements.txt
-      - run: pip install -e .
-      - run: DEVITO_LANGUAGE=C pytest
-      - run: DEVITO_LANGUAGE=openmp DEVITO_ARCH=gcc-9 pytest
+      - name: Install Joey
+        run: pip install -e .
+      - name: Run pytest (CPU)
+        run: DEVITO_LANGUAGE=C pytest
+      - name: Run pytest (CPU with OpenMP)
+        run: DEVITO_LANGUAGE=openmp DEVITO_ARCH=gcc-9 pytest
