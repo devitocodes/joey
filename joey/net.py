@@ -2,6 +2,8 @@ import joey as ml
 import numpy as np
 from devito import Eq, Operator
 
+from joey import Layer
+
 
 class Net:
     """
@@ -55,12 +57,7 @@ class Net:
 
     def _init_parameters(self):
         for layer in self._layers:
-            if layer.kernel is not None:
-                layer.kernel.data[:] = \
-                    np.random.rand(*layer.kernel.shape) - 0.5
-
-            if layer.bias is not None:
-                layer.bias.data[:] = np.random.rand(*layer.bias.shape) - 0.5
+            layer.init_params()
 
     def _gen_eqs(self):
         eqs = []
@@ -82,14 +79,16 @@ class Net:
             eqs += layer_eqs
             input_function = layer.result
 
-        return (eqs, args)
+        print(eqs)
+        return eqs, args
 
     def _gen_backprop_eqs(self):
         eqs = []
         args = []
 
         for i in range(len(self._layers)):
-            layer = self._layers[i]
+
+            layer: Layer = self._layers[i]
 
             if layer.kernel_gradients is not None:
                 eqs.append(Eq(layer.kernel_gradients, 0))
@@ -104,6 +103,8 @@ class Net:
         for i in range(len(self._layers) - 1, -1, -1):
             if i < len(self._layers) - 1:
                 prev_layer = self._layers[i + 1]
+                if not prev_layer.propagate:
+                    prev_layer = None
             else:
                 prev_layer = None
 
@@ -129,7 +130,7 @@ class Net:
                 eqs.append(Eq(layer.bias_gradients,
                               layer.bias_gradients / batch_size))
 
-        return (eqs, args)
+        return eqs, args
 
     @property
     def pytorch_parameters(self):

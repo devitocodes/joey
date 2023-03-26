@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
-from devito import Operator, Function, dimensions
+
+import numpy as np
+from devito import Operator, Function, dimensions, SpaceDimension
 from joey import Activation
 from joey import activation as activ
 from numpy import array
@@ -8,21 +10,60 @@ index = 0
 dim_index = 0
 
 
-def default_name_allocator():
+def default_name_allocator(name=''):
     global index
-    name = 'f' + str(index)
+    _name = 'f' + name + str(index)
     index += 1
-    return name
+    return _name
 
 
 def default_dim_allocator(count):
     global dim_index
-    names = ''
+    names = []
     for i in range(count):
-        names += 'd' + str(dim_index) + ' '
+        names.append('d' + str(dim_index))
         dim_index += 1
-    names = names[:-1]
-    return dimensions(names)
+    return [SpaceDimension(n) for n in names]
+
+
+class Module(ABC):
+    @property
+    def input(self):
+        """A Function object corresponding to an input data array."""
+        return self._I
+
+    @property
+    def result(self):
+        """A Function object corresponding to a result array."""
+        return self._R
+
+    @abstractmethod
+    def equations(self) -> (list, list):
+        pass
+
+    def init_params(self):
+        if self.kernel is not None:
+            self.kernel.data[:] = \
+                np.random.rand(*self.kernel.shape) - 0.5
+
+        if self.bias is not None:
+            self.bias.data[:] = np.random.rand(*self.bias.shape) - 0.5
+
+    @abstractmethod
+    def _allocate(self, **kwargs) -> (Function, Function, Function,
+                                      Function, Function, Function,
+                                      Function):
+
+        pass
+
+    def execute(self, kernel_data=None, input_data=None, bias=None) -> array:
+
+        self._op.apply(**self._arg_dict)
+        return self._R.data
+
+    @abstractmethod
+    def backprop_equations(self, prev_layer, next_layer) -> (list, list):
+        pass
 
 
 class Layer(ABC):
@@ -62,7 +103,7 @@ class Layer(ABC):
                  input_size, activation=activ.Dummy(),
                  name_allocator_func=default_name_allocator,
                  dim_allocator_func=default_dim_allocator,
-                 generate_code=False):
+                 generate_code=False, **kwargs):
         if activation is None:
             activation = activ.Dummy()
 
@@ -71,12 +112,14 @@ class Layer(ABC):
                             "its subclass")
 
         self._activation = activation
-
-        self._K, self._I, self._R, self._bias, self._KG, self._RG, \
-            self._biasG = self._allocate(kernel_size,
-                                         input_size,
-                                         name_allocator_func,
-                                         dim_allocator_func)
+        self.propagate = True
+        self.back_propagate = True
+        self.name = kwargs.get('name', '')
+        self._K, self._I, self._R, self._bias, self._KG, self._RG, self._biasG = self._allocate(kernel_size,
+                                                                                                input_size,
+                                                                                                name_allocator_func,
+                                                                                                dim_allocator_func,
+                                                                                                **kwargs)
 
         if generate_code:
             eqs, args = self.equations()
@@ -135,27 +178,35 @@ class Layer(ABC):
         kernel_parameter = None
         bias_parameter = None
 
-        if self._K is not None:
+        if self._K is not None and self.propagate:
             kernel_tensor = from_numpy(self._K.data)
             kernel_parameter = Parameter(kernel_tensor, requires_grad=False)
 
             if self._KG is not None:
                 kernel_parameter.grad = from_numpy(self._KG.data)
 
-        if self._bias is not None:
+        if self._bias is not None and self.propagate:
             bias_tensor = from_numpy(self._bias.data)
             bias_parameter = Parameter(bias_tensor, requires_grad=False)
 
             if self._biasG is not None:
                 bias_parameter.grad = from_numpy(self._biasG.data)
 
-        return (kernel_parameter, bias_parameter)
+        return kernel_parameter, bias_parameter
+
+    def init_params(self):
+        if self.kernel is not None:
+            self.kernel.data[:] = \
+                np.random.rand(*self.kernel.shape) - 0.5
+
+        if self.bias is not None:
+            self.bias.data[:] = np.random.rand(*self.bias.shape) - 0.5
 
     @abstractmethod
     def _allocate(self, kernel_size, input_size, name_allocator_func,
-                  dim_allocator_func) -> (Function, Function, Function,
-                                          Function, Function, Function,
-                                          Function):
+                  dim_allocator_func, **kwargs) -> (Function, Function, Function,
+                                                    Function, Function, Function,
+                                                    Function):
         """
         This method should return a (Function, Function, Function, Function,
         Function, Function, Function) object corresponding to a kernel,
