@@ -1,21 +1,28 @@
 import math
 
-import numpy as np
-
 from devito import Function, Operator, Eq, Inc, Constant, exp
 
-from joey import Module, default_name_allocator
+from joey import Module, default_dim_allocator
 from joey.utils import get_tensor_4d, get_tensor_3d
 from joey.new_layers import FullyConnected3d
-from joey.funtional import Softmax4d, Expand3to4, Contract4to3
 
-import time
 from torch import nn
 import torch
 from torch import functional as F
 
 
 class MultiHeadAttention(Module):
+    r"""Multi-headed Attention for input Query, Key, Value
+
+        Multi-headed Attention is a module for attention mechanisms which runs through attention in several times in
+        parallel, then the multiple outputs are concatenated and linearly transformed
+
+        Args:
+            embed_size  (int): Max embedding size
+            num_heads   (int): Number of heads in multi-headed attention; Number of splits in the embedding size
+            batch_dim   (int, optional): The dimension in which batch dimensions is
+
+        """
 
     def __init__(self,
                  embed_size: int,
@@ -52,6 +59,24 @@ class MultiHeadAttention(Module):
         self.linear = FullyConnected3d(input_size=(self.batch_size, self.lines, self.embed_size),
                                        weight_size=(self.embed_size, self.embed_size))
 
+        reshaped = (self.batch_size, self.lines, self.num_heads, self.head_size)
+        shape_sum = (self.batch_size, self.num_heads, self.lines, 1)
+        shape_scores = (self.batch_size, self.num_heads, self.lines, self.lines)
+
+        self.q_reshaped = get_tensor_4d('q_4d_', reshaped)
+        self.k_reshaped = get_tensor_4d('k_4d_', reshaped)
+        self.v_reshaped = get_tensor_4d('v_4d_', reshaped)
+
+        b, q, k, h, e, h1 = default_dim_allocator(6)
+
+        self.sqrt_embeded = Constant(name + 'sqrt_embed', value=math.sqrt(self.embed_size))
+
+        self.scores = get_tensor_4d(name=('bhqk' + self.name), shape=shape_scores, dims=[b, q, k, e])
+        self.scores_result = get_tensor_4d(name=('scores_result' + self.name), shape=shape_scores)
+        self.attention = get_tensor_4d(name=('attention' + self.name), shape=reshaped)
+        self.expon = get_tensor_4d(name=('expon' + self.name), shape=shape_scores, dims=[b, q, k, e])
+        self.sum_all = get_tensor_4d(name=('sum_all' + self.name), shape=shape_sum, dims=[b, q, k, h1])
+
         self._R = get_tensor_3d(name=('result_' + self.name), shape=(self.batch_size, self.lines, self.embed_size))
 
         if generate_code:
@@ -62,68 +87,55 @@ class MultiHeadAttention(Module):
 
     def equations(self) -> (list, list):
         x1, y1, z1, w1 = self.Q._dimensions
+        d1, d2, d3 = self.Q.input.dimensions
 
-        reshaped = (self.batch_size, self.lines, self.num_heads, self.head_size)
-        shape_scores = (self.batch_size, self.num_heads, self.lines, self.lines)
+        q_a, q_b, q_c, q_d = self.q_reshaped.dimensions
+        k_a, k_b, k_c, k_d = self.k_reshaped.dimensions
+        v_a, v_b, v_c, v_d = self.v_reshaped.dimensions
 
-        scores = get_tensor_4d(name=('bhqk_' + self.name), shape=shape_scores)
-        scores_result = get_tensor_4d(name=('scores_result_' + self.name), shape=shape_scores)
-        attention = get_tensor_4d(name=('attention_' + self.name), shape=reshaped)
+        b, q, h, e = self.q_reshaped.dimensions
+        _, k, _, _ = self.k_reshaped.dimensions
 
-        sqrt_embed = Constant(name=('sqrt_embed_' + self.name), value=math.sqrt(self.embed_size))
-
-        q_reshaped = Expand3to4(name=('q_reshaped_' + self.name), shape_in=self.Q.result.shape, shape_out=reshaped)
-        k_reshaped = Expand3to4(name=('k_reshaped_' + self.name), shape_in=self.K.result.shape, shape_out=reshaped)
-        v_reshaped = Expand3to4(name=('v_reshaped_' + self.name), shape_in=self.V.result.shape, shape_out=reshaped)
-        soft_score = Softmax4d(name='soft_' + self.name, shape=shape_scores)
-
-        q_a, q_b, q_c = q_reshaped.input.dimensions
-        k_a, k_b, k_c = k_reshaped.input.dimensions
-        v_a, v_b, v_c = v_reshaped.input.dimensions
-
-        b, q, h, e = q_reshaped.dimensions
-        _, k, _, _ = k_reshaped.dimensions
-
-        b2, h2, q2, k2 = scores.dimensions
-        b3, h3, q3, k3 = soft_score.dimensions
+        b2, h2, q2, k2 = self.scores.dimensions
+        b3, h3, q3, k3 = self.scores_result.dimensions
+        _, _, _, h1 = self.sum_all.dimensions
 
         eqs = [
-            *self.Q.equations()[0],
-            *self.K.equations()[0],
-            *self.V.equations()[0],
-            Eq(q_reshaped.input[q_a, q_b, q_c], self.Q.result[q_a, q_b, q_c]),
-            Eq(k_reshaped.input[k_a, k_b, k_c], self.K.result[k_a, k_b, k_c]),
-            Eq(v_reshaped.input[v_a, v_b, v_c], self.V.result[v_a, v_b, v_c]),
-            *q_reshaped.equations()[0],
-            *k_reshaped.equations()[0],
-            *v_reshaped.equations()[0],
-            Eq(scores[b2, h2, q2, k2], 0),
-            *[Inc(scores[b, i, q, k], q_reshaped.result[b, q, i, e] * k_reshaped.result[b, k, i, e]) for i in
-              range(self.num_heads)
-              ],
-            Eq(scores[b2, h2, q2, k2], scores[b2, h2, q2, k2] / sqrt_embed),
-            Eq(soft_score.input[b3, h3, q3, k3], scores[b3, h3, q3, k3]),
-            *soft_score.equations()[0]
+            Eq(self.Q.input[d1, d2, d3], self.input[d1, d2, d3]),
+            Eq(self.K.input[d1, d2, d3], self.input[d1, d2, d3]),
+            Eq(self.V.input[d1, d2, d3], self.input[d1, d2, d3]),
+            *self.Q.equations(dims=(x1, y1, z1, w1))[0],
+            *self.K.equations(dims=(x1, y1, z1, w1))[0],
+            *self.V.equations(dims=(x1, y1, z1, w1))[0],
+            # Forward Equations for Query Key and Value
+            Eq(self.q_reshaped[q_a, q_b, q_c, q_d], self.Q.result[q_a, q_b, (q_c * self.head_size) + q_d]),
+            Eq(self.k_reshaped[k_a, k_b, k_c, k_d], self.K.result[k_a, k_b, (k_c * self.head_size) + k_d]),
+            Eq(self.v_reshaped[v_a, v_b, v_c, v_d], self.V.result[v_a, v_b, (v_c * self.head_size) + v_d]),
+            # Einsum over Query and Key
+            Eq(self.scores[b2, h2, q2, k2], 0),
+            *[Inc(self.scores[b, i, q, k], self.q_reshaped[b, q, i, e] * self.k_reshaped[b, k, i, e]) for i in range(
+                self.num_heads
+            )],
+            # Scores divided by sqrt(embed_size)
+            Eq(self.scores[b2, h2, q2, k2], self.scores[b2, h2, q2, k2] / self.sqrt_embeded),
+            # Sofmax(scores)
+            Eq(self.expon[b2, h2, q2, k2], exp(self.scores[b2, h2, q2, k2])),
+            Eq(self.sum_all[b2, h2, q2, h1], 0),
+            Inc(self.sum_all[b2, h2, q2, h1], self.expon[b2, h2, q2, k2]),
+            Eq(self.scores_result[b3, h3, q3, k3], self.expon[b3, h3, q3, k3] / self.sum_all[b3, h3, q3, h1]),
         ]
 
-        i, k, j, l = attention.dimensions
-        _, _, _, m = soft_score.dimensions
-        _, _, _, d = attention.shape
+        i, k, j, l = self.attention.dimensions
+        _, _, _, m = self.scores_result.dimensions
+        a, b, c, d = self.attention.shape
 
-        reductor = Contract4to3(name='contract_' + self.name, shape_in=attention.shape,
-                                shape_out=self.linear.result.shape)
-
-        a, b, c, d = reductor.input.dimensions
-        e, f, g = self.linear.input.dimensions
         x, y, z = self._R.dimensions
 
         eqs += [
-            Eq(attention[i, k, j, l], 0),
-            *[Inc(attention[i, k, z, l], soft_score.result[i, z, k, m] * v_reshaped.result[i, m, z, l]) for z in
+            Eq(self.attention[i, k, j, l], 0),
+            *[Inc(self.attention[i, k, z, l], self.scores_result[i, z, k, m] * self.v_reshaped[i, m, z, l]) for z in
               range(self.num_heads)],
-            Eq(reductor.input[a, b, c, d], attention[a, b, c, d]),
-            *reductor.equations()[0],
-            Eq(self.linear.input[e, f, g], reductor.result[e, f, g]),
+            Eq(self.linear.input[i, k, (j * d) + l], self.attention[i, k, j, l]),
             *self.linear.equations()[0],
             Eq(self.result[x, y, z], self.linear.result[x, y, z])
         ]
@@ -138,133 +150,3 @@ class MultiHeadAttention(Module):
 
     def backprop_equations(self, prev_layer, next_layer) -> (list, list):
         return [], []
-
-
-class MultiHeadAttentionTorch(nn.Module):
-    r"""Multi-headed Attention for input Query, Key, Value
-
-    Multi-headed Attention is a module for attention mechanisms which runs through attention in several times in
-    parallel, then the multiple outputs are concatenated and linearly transformed
-
-    Args:
-        embed_size  (int): Max embedding size
-        num_heads   (int): Number of heads in multi-headed attention; Number of splits in the embedding size
-        dropout     (float, optional): Percentage of Dropout to be applied in range 0 <= dropout <=1
-        batch_dim   (int, optional): The dimension in which batch dimensions is
-
-    """
-
-    def __init__(self, embed_size: int, num_heads: int, dropout: float = 0.2, batch_dim: int = 0):
-        super(MultiHeadAttentionTorch, self).__init__()
-
-        self.embed_size = embed_size
-        self.num_heads = num_heads
-        self.dropout = dropout
-        self.batch_dim = batch_dim
-
-        self.dropout_layer = nn.Dropout(dropout)
-
-        self.head_size = self.embed_size // self.num_heads
-
-        assert self.head_size * self.num_heads == self.embed_size, "Heads cannot split Embedding size equally"
-
-        self.Q = nn.Linear(self.embed_size, self.embed_size)
-        self.K = nn.Linear(self.embed_size, self.embed_size)
-        self.V = nn.Linear(self.embed_size, self.embed_size)
-
-        self.linear = nn.Linear(self.embed_size, self.embed_size)
-
-    def forward(self, q, k, v, mask=None):
-        out = self.batch_0(q, k, v, mask)
-
-        return out
-
-    def batch_0(self, q, k, v, mask=None):
-        q_batch_size, q_seq_len, q_embed_size = q.size()
-        k_batch_size, k_seq_len, k_embed_size = k.size()
-        v_batch_size, v_seq_len, v_embed_size = v.size()
-
-        q = self.Q(q).reshape(q_batch_size, q_seq_len, self.num_heads, self.head_size)
-        k = self.K(k).reshape(k_batch_size, k_seq_len, self.num_heads, self.head_size)
-        v = self.V(v).reshape(v_batch_size, v_seq_len, self.num_heads, self.head_size)
-
-        self.q_reshaped = q
-        self.k_reshaped = k
-        self.v_reshaped = v
-
-        attention = self.attention(q, k, v, mask=mask)
-        self.att = attention
-        concatenated = attention.reshape(v_batch_size, -1, self.embed_size)
-        self.concatened = concatenated
-        out = self.linear(concatenated)
-
-        return out
-
-    def attention(self, q, k, v, mask=None):
-        scores = torch.einsum("bqhe,bkhe->bhqk", [q, k])
-
-        if mask is not None:
-            scores = scores.masked_fill(mask == 0, -1e9)
-
-        scores /= math.sqrt(self.embed_size)
-        scores = F.F.softmax(scores, dim=-1)
-        attention = torch.einsum("bhql,blhd->bqhd", [scores, v])
-        return attention
-
-a = MultiHeadAttention(
-    embed_size=512,
-    batch_dim=0,
-    num_heads=8,
-    lines=17,
-    batch_size=64,
-    generate_code=True
-)
-
-# print(a.eqs)
-print(a._op)
-# a.operator1.apply()
-
-b = MultiHeadAttentionTorch(
-    embed_size=512,
-    dropout=0.2,
-    batch_dim=0,
-    num_heads=8
-)
-
-a.Q.kernel.data[:] = b.Q.weight.detach().numpy()
-a.Q.bias.data[:] = b.Q.bias.detach().numpy()
-a.V.kernel.data[:] = b.V.weight.detach().numpy()
-a.V.bias.data[:] = b.V.bias.detach().numpy()
-a.K.kernel.data[:] = b.K.weight.detach().numpy()
-a.K.bias.data[:] = b.K.bias.detach().numpy()
-
-a.linear.kernel.data[:] = b.linear.weight.detach().numpy()
-a.linear.bias.data[:] = b.linear.bias.detach().numpy()
-#
-q = np.random.rand(64, 17, 512)
-k = np.random.rand(64, 17, 512)
-v = np.random.rand(64, 17, 512)
-#
-q = q.astype('float32')
-k = k.astype('float32')
-v = v.astype('float32')
-
-
-a.Q.input.data[:] = q
-a.K.input.data[:] = k
-a.V.input.data[:] = v
-
-
-t = time.time()
-a._op.apply()
-print(time.time() - t)
-result = a.result.data
-
-t2 = time.time()
-result2 = b.forward(torch.from_numpy(q), torch.from_numpy(k), torch.from_numpy(v))
-print(time.time() - t2)
-
-#
-close = np.allclose(result, result2.detach().numpy(), rtol=1e-5, atol=1e-5)
-diff = result2.detach().numpy() - result
-print("pertim:", close)

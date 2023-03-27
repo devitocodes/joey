@@ -133,6 +133,11 @@ class Layer(ABC):
         return self._K
 
     @property
+    def weight(self):
+        """A Function object corresponding to a kernel/weight array."""
+        return self._K.data
+
+    @property
     def input(self):
         """A Function object corresponding to an input data array."""
         return self._I
