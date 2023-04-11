@@ -8,6 +8,7 @@ Joey is a machine learning framework running on top of [Devito](https://github.c
 * A backward pass through a neural network with batch processing
 * Producing backpropagation equations automatically based on the list of layers in a neural network (only a loss function must be defined manually by the user)
 * Training a neural network with PyTorch optimizers
+* Initiate a transformer neural network for image classification
 
 Unlike other machine learning frameworks, Joey generates and compiles an optimized low-level code on-the-spot (using Devito) for both standalone layers and proper neural networks.
 
@@ -16,10 +17,23 @@ Unlike other machine learning frameworks, Joey generates and compiles an optimiz
 * 2D max pooling (other types of 2D pooling can be implemented by the user by extending the `Pooling` abstract class)
 * Full connection
 * Flattening (an internal layer turning 2D data with channels into a 1D vector or 2D matrix, depending on the batch size)
+* 3D FullyConnected
+* Einsun function
+* Dropout 1, 2, 3 and 4 dimensions
+* Norm 2D
+* Norm 3D
+* Softmax 3D and 4D function
+
+## Supported modules
+* MultiHeadAttention
+* VisionEnconder
+
+## Built-in Models
+* ViT (Vision Transformer)
 
 ## Supported activation functions
 * ReLU
-* Softmax (only via the `FullyConnectedSoftmax` class)
+* Softmax (only via the `FullyConnectedSoftmax` class or with `Softmax3d` / `Softmax4d` function)
 * Dummy (`f(x) = x`)
 
 Other activation functions can be implemented by extending the `Activation` abstract class.
